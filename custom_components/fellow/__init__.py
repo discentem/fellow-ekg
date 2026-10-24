@@ -21,6 +21,7 @@ from .const import (
     EVENT_RAPID_RISE,
     EVENT_RAPID_RISE_STOP_FAILED,
 )
+from .dock import LIFTED, DockTracker
 from .kettle import KettleTransientError, StaggEKGClient
 from .rise import (
     ACTION_GIVE_UP,
@@ -36,11 +37,6 @@ from .rise import (
 # absorb the "kettle just turned off" window, short enough that a truly
 # offline kettle doesn't show stale data forever.
 MAX_CONSECUTIVE_TRANSIENT_FAILURES = 6
-
-# Lift-detection: once we observe the kettle leaving the base, treat it
-# as "lifted" for at least this long, even if a brief docked reading
-# appears (the kettle can flap as it's set back down).
-LIFT_COOLDOWN_SECONDS = 90
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -145,8 +141,7 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize."""
         self.client = client
         self._consecutive_transient_failures = 0
-        self._was_docked: bool | None = None
-        self._lifted_at = None
+        self.dock = DockTracker()
         self.last_poll = None
         self.rise_detector = RapidRiseDetector(threshold=rise_threshold)
         self.rise_auto_stop = rise_auto_stop
@@ -159,20 +154,6 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_interval=timedelta(seconds=5),
         )
-
-    @property
-    def recently_lifted(self) -> bool:
-        """Whether the kettle was lifted off the base in the recent past.
-
-        Edge-triggered on docked → undocked, with a cooldown window so a
-        single flapping reading after re-docking doesn't immediately clear
-        the signal.
-        """
-        if self._lifted_at is None:
-            return False
-        return (
-            dt_util.utcnow() - self._lifted_at
-        ).total_seconds() < LIFT_COOLDOWN_SECONDS
 
     async def _async_update_data(self):
         """Fetch data from API."""
@@ -205,14 +186,9 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         self._consecutive_transient_failures = 0
         self.last_poll = dt_util.utcnow()
 
-        # Track docked → undocked transition for lift detection. We only
-        # care about the falling edge; the cooldown window in
-        # `recently_lifted` handles re-dock flapping.
-        if self._was_docked and not state.is_docked:
-            self._lifted_at = dt_util.utcnow()
+        if self.dock.update(self.last_poll, state.is_docked) == LIFTED:
             # Lifting usually means a refill, so clear any rapid-rise alert.
             self.rise_detector.reset()
-        self._was_docked = state.is_docked
 
         now = time.monotonic()
         if self.rise_detector.update(now, state.current_temp_c, state.is_heating):

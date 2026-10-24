@@ -88,7 +88,7 @@ class StaggEKGPowerBinarySensor(StaggEKGBinarySensorBase):
 
 
 class StaggEKGLiftedBinarySensor(StaggEKGBinarySensorBase):
-    """Binary sensor that fires when the kettle is taken off the base."""
+    """On while the kettle is off its base."""
 
     _attr_device_class = BinarySensorDeviceClass.MOVING
 
@@ -103,8 +103,16 @@ class StaggEKGLiftedBinarySensor(StaggEKGBinarySensorBase):
 
     @property
     def is_on(self) -> bool:
-        """Return true if the kettle was recently lifted from the base."""
-        return self.coordinator.recently_lifted
+        """Return true while the kettle is off the base."""
+        return self.coordinator.dock.lifted
+
+    @property
+    def extra_state_attributes(self):
+        """Return when the kettle was last lifted and set back down."""
+        return {
+            "last_lifted": self.coordinator.dock.last_lifted,
+            "last_set_down": self.coordinator.dock.last_set_down,
+        }
 
 
 def _round_rate(rate: float | None) -> float | None:

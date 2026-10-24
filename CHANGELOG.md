@@ -39,6 +39,11 @@ All notable changes to this project will be documented in this file.
   `watch_heat_cycle()` instead.
 
 ### Fixed
+- `Lifted` now turns off when the kettle is set back down, about 5–10 s
+  later. It used to stay on for a fixed 90 s after every lift, wherever the
+  kettle was. It turns off after two polls in a row read a temperature
+  again (the kettle reports `tempr=nan` while off the base), and has new
+  `last_lifted` and `last_set_down` attributes.
 - Starting a boil from Home Assistant no longer bypasses the kettle's
   display. `ss S_Heat` sent from Off ran the heater on firmware 1.1.75SSP
   while the kettle kept reporting Off with the display dark, so neither the
