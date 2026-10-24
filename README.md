@@ -23,7 +23,6 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 - Automatic temperature validation
 
 🔒 **Safety Features**
-- Low water detection warning
 - Rapid temperature-rise detection (likely empty kettle), with optional auto-stop
 - Automatic power management
 - Temperature range limits
@@ -53,7 +52,6 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `switch.fellow_heating` | Switch | Heating element control |
 | `switch.fellow_warming` | Switch | Warming mode control |
 | `binary_sensor.fellow_power` | Binary Sensor | Power on/off status |
-| `binary_sensor.fellow_low_water_warning` | Binary Sensor | Water detection alert |
 | `binary_sensor.fellow_rapid_temperature_rise` | Binary Sensor | Temperature climbing fast enough to suggest an empty kettle |
 
 ## Installation
@@ -199,11 +197,6 @@ automation:
     trigger:
       platform: time
       at: "07:00:00"
-    condition:
-      # Only if water detected
-      - condition: state
-        entity_id: binary_sensor.fellow_low_water_warning
-        state: "off"
     action:
       - service: water_heater.set_temperature
         target:
@@ -350,12 +343,6 @@ See [KETTLE_SPECS.md](KETTLE_SPECS.md) for complete technical documentation.
 2. Check the IP address hasn't changed
 3. Ensure Home Assistant can reach the kettle's network
 4. Try pinging the kettle: `ping 192.168.1.100`
-
-### Low Water Warning Always On
-
-- Warning triggers when temperature < 30°C
-- If water is present but cold, warning will clear as temp rises
-- This is a temperature-based heuristic, not a physical sensor
 
 ### Temperature Unit Mismatch
 

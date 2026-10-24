@@ -82,13 +82,6 @@ class KettleState:
         return self.current_temp_c is not None
 
     @property
-    def may_have_no_water(self) -> bool:
-        """Return if kettle may not have water (temp < 30C heuristic)."""
-        if self.current_temp_c is None:
-            return True
-        return self.current_temp_c < 30
-
-    @property
     def current_temperature(self) -> Optional[float]:
         """Return current temperature in Celsius."""
         return self.current_temp_c

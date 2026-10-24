@@ -24,7 +24,6 @@ async def async_setup_entry(
 
     entities = [
         StaggEKGPowerBinarySensor(coordinator, entry),
-        StaggEKGWaterBinarySensor(coordinator, entry),
         StaggEKGLiftedBinarySensor(coordinator, entry),
         StaggEKGRapidRiseBinarySensor(coordinator, entry),
     ]
@@ -149,36 +148,3 @@ class StaggEKGRapidRiseBinarySensor(StaggEKGBinarySensorBase):
             # None, "pending", "stopped" or "failed".
             "stop_status": self.coordinator.auto_stop.status,
         }
-
-
-class StaggEKGWaterBinarySensor(StaggEKGBinarySensorBase):
-    """Binary sensor for water detection."""
-
-    _attr_device_class = BinarySensorDeviceClass.PROBLEM
-
-    def __init__(
-        self, coordinator: StaggEKGDataUpdateCoordinator, entry: ConfigEntry
-    ) -> None:
-        """Initialize the binary sensor."""
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_water_warning"
-        self._attr_name = "Low Water Warning"
-        self._attr_icon = "mdi:water-alert"
-
-    @property
-    def is_on(self) -> bool:
-        """Return true if kettle may have low/no water."""
-        if self.coordinator.data and "state" in self.coordinator.data:
-            return self.coordinator.data["state"].may_have_no_water
-        return False
-
-    @property
-    def extra_state_attributes(self):
-        """Return additional state attributes."""
-        if self.coordinator.data and "state" in self.coordinator.data:
-            state = self.coordinator.data["state"]
-            return {
-                "current_temperature": state.current_temp_c,
-                "note": "Temperature below 30°C may indicate no water",
-            }
-        return {}

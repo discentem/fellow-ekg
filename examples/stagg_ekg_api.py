@@ -37,21 +37,10 @@ class KettleState:
         """Return if kettle is showing a menu screen."""
         return "menu" in self.mode.lower() if self.mode else False
 
-    @property
-    def may_have_no_water(self) -> bool:
-        """
-        Return if kettle may not have water.
-        If current temp is very low (< 30°C), may indicate no water.
-        """
-        if self.current_temp_c is None:
-            return True
-        return self.current_temp_c < 30
-
     def __str__(self):
         temp_unit = "°C" if self.units == 1 else "°F"
         current = f"{self.current_temp_c}°C" if self.current_temp_c else "N/A"
-        water_status = " [LOW WATER WARNING]" if self.may_have_no_water else ""
-        return f"Mode: {self.mode}, Current: {current}, Target: {self.set_temp_c}°C ({self.set_temp_f}°F), Time: {self.clock}, Display Unit: {temp_unit}{water_status}"
+        return f"Mode: {self.mode}, Current: {current}, Target: {self.set_temp_c}°C ({self.set_temp_f}°F), Time: {self.clock}, Display Unit: {temp_unit}"
 
 
 class StaggEKGClient:

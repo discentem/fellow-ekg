@@ -17,6 +17,19 @@ All notable changes to this project will be documented in this file.
   quickstart in the README asks whether you added water, then uses it.
 - Unit tests for the detector in `tests/test_rise.py`.
 
+### Removed
+- **Breaking:** the `Low Water Warning` binary sensor
+  (`binary_sensor.fellow_low_water_warning`). It was on whenever the water
+  was below 30 °C, so it tracked how cold the water was, not how much there
+  was: on for a full kettle of cold water, off for a nearly empty one that
+  was just boiled. Use `Rapid Temperature Rise`, which reflects the water
+  level while heating. Automations that use the old entity need updating;
+  Home Assistant will list it as no longer provided until it's deleted.
+- **Breaking:** `KettleState.may_have_no_water` in the standalone example
+  client (`examples/stagg_ekg_api.py`), the same 30 °C check, and the
+  `[LOW WATER WARNING]` suffix in its `str()`. The examples README shows
+  `watch_heat_cycle()` instead.
+
 ### Fixed
 - The example client's `stop_heating()` sends `ss S_Off` and checks that it
   took, like the integration's client. It used to press the dial, which
