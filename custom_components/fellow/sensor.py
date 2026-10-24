@@ -27,6 +27,7 @@ async def async_setup_entry(
     entities = [
         StaggEKGCurrentTempSensor(coordinator, entry),
         StaggEKGTargetTempSensor(coordinator, entry),
+        StaggEKGHoldEndsSensor(coordinator, entry),
         StaggEKGModeSensor(coordinator, entry),
         StaggEKGRawStatusSensor(coordinator, entry),
     ]
@@ -81,11 +82,18 @@ class StaggEKGCurrentTempSensor(StaggEKGSensorBase):
 
 
 class StaggEKGTargetTempSensor(StaggEKGSensorBase):
-    """Target temperature sensor."""
+    """The kettle's own target temperature, read-only.
+
+    The kettle has a single target: it heats to it, then holds there. The
+    integration sets it to the Heat Up Target for boils and lowers it to the
+    Hold Target while holding, so the hold temperature can differ. Change
+    those two instead; this shows which one the kettle is using.
+    """
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _unrecorded_attributes = frozenset({"note"})
 
     def __init__(
         self, coordinator: StaggEKGDataUpdateCoordinator, entry: ConfigEntry
@@ -97,10 +105,23 @@ class StaggEKGTargetTempSensor(StaggEKGSensorBase):
 
     @property
     def native_value(self) -> float | None:
-        """Return the target temperature."""
+        """Return the kettle's active target."""
         if self.coordinator.data and "state" in self.coordinator.data:
             return self.coordinator.data["state"].set_temp_c
         return None
+
+    @property
+    def extra_state_attributes(self):
+        """Say which target is in use, and why there are two."""
+        return {
+            "role": "hold" if self.coordinator.targets.applied else "heat_up",
+            "note": (
+                "The kettle's own target: it heats to this, then holds there. "
+                "The integration sets it to Heat Up Target for boils and lowers "
+                "it to Hold Target during a hold, so the hold temperature can "
+                "differ. Change Heat Up Target or Hold Target instead."
+            ),
+        }
 
 
 class StaggEKGModeSensor(StaggEKGSensorBase):
@@ -178,3 +199,28 @@ class StaggEKGRawStatusSensor(StaggEKGSensorBase):
             "last_poll": self.coordinator.last_poll,
             "raw": state.raw,
         }
+
+
+class StaggEKGHoldEndsSensor(StaggEKGSensorBase):
+    """When the current hold ends; shown as a countdown.
+
+    The kettle restarts its Hold Duration each time its mode becomes plain
+    S_Hold (see targets.HoldTimer), so this is accurate to about one poll.
+    Empty when the kettle isn't holding.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(
+        self, coordinator: StaggEKGDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_hold_ends"
+        self._attr_name = "Hold Ends"
+        self._attr_icon = "mdi:timer-sand-complete"
+
+    @property
+    def native_value(self):
+        """Return when the hold ends, or None if not holding."""
+        return self.coordinator.hold_timer.ends_at(self.coordinator.hold_minutes)

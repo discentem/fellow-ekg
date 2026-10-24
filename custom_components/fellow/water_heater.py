@@ -103,9 +103,9 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
 
     @property
     def target_temperature(self) -> float | None:
-        """Return the target temperature."""
-        if self.coordinator.data and "state" in self.coordinator.data:
-            temp_c = self.coordinator.data["state"].set_temp_c
+        """Return the Heat Up Target (what a boil heats to)."""
+        temp_c = self.coordinator.targets.heat_target
+        if temp_c is not None:
             # Convert to configured unit
             if self._attr_temperature_unit == UnitOfTemperature.FAHRENHEIT:
                 return round(temp_c * 9/5 + 32, 1)
@@ -151,10 +151,9 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
         else:
             temp_celsius = temperature
 
-        # The kettle client handles batching, verification, and self-correction
-        await self.hass.async_add_executor_job(
-            self.coordinator.client.set_temperature, temp_celsius
-        )
+        # Same as setting Heat Up Target: written to the kettle now, or when a
+        # lowered hold ends.
+        await self.coordinator.async_set_heat_target(temp_celsius)
 
         await self.coordinator.async_request_refresh()
 
@@ -166,6 +165,7 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
             )
             await self.hass.async_add_executor_job(self.coordinator.client.end_hold)
         elif operation_mode == OPERATION_MODE_HEAT:
+            await self.coordinator.async_before_boil()
             await self.hass.async_add_executor_job(
                 self.coordinator.client.start_heating
             )
@@ -179,6 +179,7 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the kettle on and start heating."""
+        await self.coordinator.async_before_boil()
         await self.hass.async_add_executor_job(
             self.coordinator.client.start_heating
         )

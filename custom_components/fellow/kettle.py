@@ -370,6 +370,23 @@ class StaggEKGClient:
         match = re.search(r'guide=(\d+)', response)
         return bool(int(match.group(1))) if match else False
 
+    def write_target(self, target_celsius: float) -> float:
+        """Set the kettle's target with `setsetting settempr` and check it.
+
+        Unlike set_temperature(), this never falls back to turning the dial,
+        so it's safe while the kettle is holding. It takes effect at once,
+        including mid-hold, and is saved as the kettle's target setting.
+        """
+        target_f = round(target_celsius * 9 / 5 + 32)
+        self._send_command(f"setsetting settempr {target_f}")
+        time.sleep(SETTLE_DELAY)
+        actual_c = self.get_state().set_temp_c
+        if abs(round(actual_c * 9 / 5 + 32) - target_f) > 1:
+            raise KettleSettingError(
+                f"Kettle reports a {actual_c} C target after setting {target_celsius} C"
+            )
+        return actual_c
+
     def get_hold_minutes(self) -> Optional[int]:
         """How long the kettle holds temperature after a boil, in minutes."""
         match = re.search(r"st: hold=(\d+)", self._send_command("prtsettings"))

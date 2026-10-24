@@ -74,6 +74,9 @@ class StaggEKGHeatingSwitch(StaggEKGSwitchBase):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn heating on."""
+        # A lowered hold leaves the kettle at the Hold Target; boil to the
+        # Heat Up Target instead.
+        await self.coordinator.async_before_boil()
         # Use start_heating to properly wake screen and start heating
         await self.hass.async_add_executor_job(self.coordinator.client.start_heating)
         await self.coordinator.async_request_refresh()

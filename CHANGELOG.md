@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 - `watch_heat_cycle()` in `rise.py` for scripts outside Home Assistant: it
   watches one boil and turns the kettle off on a rapid rise. The standalone
   quickstart in the README asks whether you added water, then uses it.
+- `Heat Up Target` and `Hold Target` numbers: hold lower than you boil. When
+  the kettle starts holding, its target is lowered to the Hold Target, and
+  the Heat Up Target is put back when the hold runs out or the kettle is
+  turned off (not when it's lifted to pour). Outside a lowered hold, Heat Up
+  Target follows the kettle's own target. Both are saved across restarts.
+  The water heater's target is the Heat Up Target.
+- `Hold Ends` sensor: when the current hold ends, as a countdown.
 - `Hold Duration` select: 15, 30, 45 or 60 minutes, the same choices as the
   kettle's hold menu. It writes `setsetting hold <n>` and reads it back, and
   re-reads the setting about once a minute to pick up changes made on the
@@ -30,6 +37,10 @@ All notable changes to this project will be documented in this file.
 - Unit tests for the detector in `tests/test_rise.py`.
 
 ### Changed
+- `Target Temperature` is now explicitly the kettle's own target, read-only.
+  During a lowered hold it shows the Hold Target; its `role` attribute says
+  whether it's the `heat_up` or `hold` target. Set `Heat Up Target` and
+  `Hold Target` instead.
 - `Warming` is now `Warming / Holding` and follows the kettle's hold
   instead of driving the warming element directly (`warmon` / `warmoff`),
   which the kettle's own state and display don't reflect. It turns on when a

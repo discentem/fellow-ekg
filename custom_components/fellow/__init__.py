@@ -11,6 +11,7 @@ from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -23,6 +24,7 @@ from .const import (
 )
 from .dock import LIFTED, DockTracker
 from .kettle import KettleTransientError, StaggEKGClient
+from .targets import HoldTimer, TargetManager
 from .rise import (
     ACTION_GIVE_UP,
     ACTION_SEND,
@@ -48,6 +50,9 @@ POWER_OFF_AFTER_FAILURES = 2
 # the kettle's own menu.
 HOLD_REFRESH_POLLS = 12
 
+# A failed Hold Target / Heat Up Target write is retried at most this often.
+TARGET_RETRY_SECONDS = 60
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
@@ -57,6 +62,7 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.SELECT,
+    Platform.NUMBER,
 ]
 
 
@@ -101,12 +107,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data.get(CONF_RAPID_RISE_AUTO_STOP, DEFAULT_RAPID_RISE_AUTO_STOP),
     )
 
+    # Heat Up Target / Hold Target live in Home Assistant, since the kettle
+    # has only one target; saved so a restart mid-hold doesn't lose them.
+    store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.targets")
+
     # Create update coordinator
     coordinator = StaggEKGDataUpdateCoordinator(
         hass,
         client,
         rise_threshold=rise_threshold,
         rise_auto_stop=rise_auto_stop,
+        targets=TargetManager.from_dict(await store.async_load()),
+        targets_store=store,
     )
 
     # Fetch initial data
@@ -148,11 +160,17 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         client: StaggEKGClient,
         rise_threshold: float = DEFAULT_RAPID_RISE_THRESHOLD,
         rise_auto_stop: bool = DEFAULT_RAPID_RISE_AUTO_STOP,
+        targets: TargetManager | None = None,
+        targets_store: Store | None = None,
     ) -> None:
         """Initialize."""
         self.client = client
         self._consecutive_transient_failures = 0
         self.dock = DockTracker()
+        self.targets = targets or TargetManager()
+        self._targets_store = targets_store
+        self.hold_timer = HoldTimer()
+        self._next_target_retry = 0.0
         self.hold_minutes: int | None = None
         self._polls_since_hold_read = HOLD_REFRESH_POLLS
         self.last_poll = None
@@ -229,7 +247,57 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
             self.auto_stop.reset()
         self._drive_auto_stop(now, state.is_heating or state.is_holding)
 
+        self.hold_timer.update(self.last_poll, state.mode)
+        target = self.targets.poll(state.mode, state.set_temp_c)
+        if target is not None and now >= self._next_target_retry:
+            if not await self.async_write_target(target):
+                self._next_target_retry = now + TARGET_RETRY_SECONDS
+        self._save_targets()
+
         return {"state": state}
+
+    async def async_write_target(self, target: float, *, dial_ok: bool = False) -> bool:
+        """Write a target the TargetManager asked for; True if it took.
+
+        Mid-hold writes must use the direct command (write_target). With
+        dial_ok, the configured method (set_temperature) is used instead, for
+        a heat-up target set while no lowered hold is in place.
+        """
+        write = self.client.set_temperature if dial_ok else self.client.write_target
+        try:
+            await self.hass.async_add_executor_job(write, target)
+        except Exception as err:  # pylint: disable=broad-except
+            # Asked again on the next poll if it's still needed.
+            _LOGGER.warning("Couldn't set the kettle target to %.1f C: %s", target, err)
+            return False
+        self.targets.written(target)
+        self._save_targets()
+        return True
+
+    def _save_targets(self) -> None:
+        if self.targets.changed and self._targets_store is not None:
+            self.targets.changed = False
+            self._targets_store.async_delay_save(self.targets.as_dict, 1)
+
+    async def async_set_heat_target(self, celsius: float) -> None:
+        state = (self.data or {}).get("state")
+        target = self.targets.set_heat_target(celsius, bool(state and state.is_holding))
+        if target is not None:
+            await self.async_write_target(target, dial_ok=True)
+        self._save_targets()
+
+    async def async_set_hold_target(self, celsius: float) -> None:
+        state = (self.data or {}).get("state")
+        target = self.targets.set_hold_target(celsius, bool(state and state.is_holding))
+        if target is not None:
+            await self.async_write_target(target)
+        self._save_targets()
+
+    async def async_before_boil(self) -> None:
+        """Put the heat-up target back if a lowered hold is in place."""
+        target = self.targets.before_boil()
+        if target is not None:
+            await self.async_write_target(target)
 
     def _handle_rapid_rise(self, now: float) -> None:
         """React to the first poll of a heat cycle that shows a rapid rise."""

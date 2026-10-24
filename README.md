@@ -12,7 +12,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 
 ✨ **Complete Control**
 - Turn kettle on/off from Home Assistant
-- Set target temperature (40-100°C / 104-212°F)
+- Set target temperature (40-100°C / 104-212°F), with a separate, lower hold temperature
 - Monitor current water temperature in real-time
 - View operating mode and heating status
 
@@ -47,7 +47,10 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 |--------|------|---------|
 | `water_heater.fellow_kettle` | Water Heater | Main control interface |
 | `sensor.fellow_current_temperature` | Sensor | Real-time water temperature |
-| `sensor.fellow_target_temperature` | Sensor | Target temperature setting |
+| `sensor.fellow_target_temperature` | Sensor | The kettle's own target, read-only: the Heat Up Target during a boil, the Hold Target during a lowered hold (`role` attribute says which) |
+| `number.fellow_heat_up_target` | Number | What a boil heats to (the water heater's target) |
+| `number.fellow_hold_target` | Number | What the kettle holds at after a boil |
+| `sensor.fellow_hold_ends` | Sensor (timestamp) | When the current hold ends, shown as a countdown |
 | `sensor.fellow_mode` | Sensor | Operating mode (Off, Heat, Standby) |
 | `switch.fellow_heating` | Switch | Heating element control |
 | `switch.fellow_warming` | Switch | "Warming / Holding": on while the kettle holds the water at temperature after a boil; turning it off ends the hold |
@@ -117,6 +120,44 @@ The integration will sync the temperature unit with your kettle's LCD display.
 3. Click "CONFIGURE"
 4. Select your preferred unit
 5. Submit - the kettle display updates immediately
+
+### Heat Up Target and Hold Target
+
+The kettle has a single target temperature: it heats to it, then holds there.
+To boil hot but keep the water at a gentler temperature, set **Hold Target**
+below **Heat Up Target**.
+
+When a boil finishes and the kettle starts holding, the integration lowers the
+kettle's target to the Hold Target. The water cools to it, and the kettle
+holds it there; on a Stagg EKG Pro, a hold lowered to 85 °C stayed within
+84.2–85.7 °C. When the hold runs out or the kettle is turned off, the
+integration puts the Heat Up Target back, so the next boil, even one started
+with the dial, heats to the Heat Up Target again. Lifting the kettle to pour
+mid-hold keeps the Hold Target. Starting a boil from Home Assistant during a
+lowered hold boils to the Heat Up Target.
+
+Changing Heat Up Target while the kettle is holding only applies to future
+boils: the kettle keeps holding where it is, and the new target is set when
+the hold ends. During a boil it applies to that boil, like turning the dial.
+
+Outside a lowered hold, Heat Up Target follows the kettle's own target, so
+turning the dial still works. A Hold Target at or above the Heat Up Target
+means the kettle holds at the Heat Up Target, as before. Both are kept by
+Home Assistant, so lowering the hold only works while it's running.
+
+If you lower the Heat Up Target below the water's current temperature
+mid-boil, the kettle stays in its heating mode while the water cools, and
+starts holding once the water reaches the target.
+
+### Hold Ends
+
+`sensor.fellow_hold_ends` shows when the current hold ends, as a countdown.
+The kettle restarts its Hold Duration every time it settles back into its
+hold (after a boil or reheat, after you set it down from pouring, or when you
+close a menu on its display), and the countdown follows that, to within one
+poll. It's empty when the kettle isn't holding. If Home Assistant restarts
+mid-hold, the countdown starts from its first poll, so it can run a little
+late for that hold.
 
 ### Hold Duration
 
