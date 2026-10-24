@@ -234,6 +234,7 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
                 )
             except Exception as err:  # pylint: disable=broad-except
                 _LOGGER.debug("Couldn't read the hold setting: %s", err)
+                self._polls_since_hold_read = HOLD_REFRESH_POLLS  # next poll
 
         if self.dock.update(self.last_poll, state.is_docked) == LIFTED:
             # Lifting usually means a refill, so clear any rapid-rise alert.

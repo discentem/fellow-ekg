@@ -169,7 +169,9 @@ Hold Target with `number.set_value`; the water heater also shows it as a
 
 If you lower the Heat Up Target below the water's current temperature
 mid-boil, the kettle stays in its heating mode while the water cools, and
-starts holding once the water reaches the target.
+starts holding once the water reaches the target. The Mode sensor shows
+**Cooling to target** meanwhile, and **Cooling to hold target** while the
+water cools to a lower Hold Target, so neither looks like heating.
 
 ### Hold Ends
 
@@ -180,6 +182,16 @@ close a menu on its display), and the countdown follows that, to within one
 poll. It's empty when the kettle isn't holding. If Home Assistant restarts
 mid-hold, the countdown starts from its first poll, so it can run a little
 late for that hold.
+
+The `ends_at` attribute has the end as a clock time (e.g. `23:06`). On a
+dashboard, an entities card can show the time instead of the countdown:
+
+```yaml
+type: entities
+entities:
+  - entity: sensor.fellow_hold_ends
+    format: time  # "11:06 PM" instead of "in 12 minutes"
+```
 
 ### Hold Duration
 

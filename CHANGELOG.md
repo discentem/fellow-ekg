@@ -23,7 +23,11 @@ All notable changes to this project will be documented in this file.
   The water heater's target is the Heat Up Target, so
   `water_heater.set_temperature` keeps working as before; it also shows the
   Hold Target as a `hold_temperature` attribute.
-- `Hold Ends` sensor: when the current hold ends, as a countdown.
+- `Hold Ends` sensor: when the current hold ends, as a countdown, with the
+  end as a clock time in an `ends_at` attribute.
+- `Mode` shows "Cooling to target" or "Cooling to hold target" while the
+  water is more than 1 °C above the kettle's target, which the kettle itself
+  reports as heating or holding.
 - `Hold Duration` select: 15, 30, 45 or 60 minutes, the same choices as the
   kettle's hold menu. It writes `setsetting hold <n>` and reads it back, and
   re-reads the setting about once a minute to pick up changes made on the

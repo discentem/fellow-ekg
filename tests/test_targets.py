@@ -116,6 +116,24 @@ class TargetManagerTest(unittest.TestCase):
         self.assertEqual(m.heat_target, 100.0)
 
 
+class CoolingLabelTest(unittest.TestCase):
+
+    def test_labels(self):
+        label = targets.cooling_label
+        # Seen on the kettle: target lowered to 80.6 mid-boil at 84 C.
+        self.assertEqual(label("S_Heat", 84.0, 80.6), targets.COOLING_TO_TARGET)
+        self.assertEqual(label("S_Heat+tset", 84.0, 80.6), targets.COOLING_TO_TARGET)
+        # Lowered Hold Target while the water cools to it.
+        self.assertEqual(label("S_Hold", 99.0, 85.0), targets.COOLING_TO_HOLD_TARGET)
+        self.assertEqual(label("S_Hold+menu", 99.0, 85.0), targets.COOLING_TO_HOLD_TARGET)
+        # Normal holding wobble (84.2-85.7 C at 85) and heating below target.
+        self.assertIsNone(label("S_Hold", 85.7, 85.0))
+        self.assertIsNone(label("S_Heat", 60.0, 100.0))
+        # Off, or no reading.
+        self.assertIsNone(label("S_Off", 90.0, 80.0))
+        self.assertIsNone(label("S_Heat", None, 80.0))
+
+
 class HoldTimerTest(unittest.TestCase):
 
     def test_matches_the_measured_hold(self):

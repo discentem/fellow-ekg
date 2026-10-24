@@ -20,13 +20,36 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from .rise import HOLD_MODE, base_mode, is_holding_mode
+from .rise import HOLD_MODE, base_mode, is_heating_mode, is_holding_mode
 
 MIN_TARGET_C = 40.0
 MAX_TARGET_C = 100.0
 HOLD_OVER_MODES = ("S_HeatOff", "S_Off")
 # Below the kettle's 0.5 C step, two targets count as the same.
 SAME_TARGET_C = 0.25
+# Water this far above the target is cooling toward it, not being held at it.
+# A hold measured at 85 C stayed within 84.2-85.7 C.
+COOLING_MARGIN_C = 1.0
+
+COOLING_TO_TARGET = "Cooling to target"
+COOLING_TO_HOLD_TARGET = "Cooling to hold target"
+
+
+def cooling_label(mode: Optional[str], temp_c: Optional[float],
+                  target_c: Optional[float]) -> Optional[str]:
+    """Say so when the water is above the target and cooling toward it.
+
+    The kettle stays in its heating mode when the target is lowered below the
+    water's temperature mid-boil, and in its hold mode while the water cools
+    to a lowered Hold Target; it heats nothing until the water gets there.
+    """
+    if temp_c is None or target_c is None or temp_c <= target_c + COOLING_MARGIN_C:
+        return None
+    if is_holding_mode(mode):
+        return COOLING_TO_HOLD_TARGET
+    if is_heating_mode(mode):
+        return COOLING_TO_TARGET
+    return None
 
 
 def clamp_target(celsius: float) -> float:

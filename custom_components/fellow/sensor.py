@@ -11,9 +11,11 @@ from homeassistant.const import EntityCategory, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import StaggEKGDataUpdateCoordinator
 from .const import DOMAIN
+from .targets import cooling_label
 
 
 async def async_setup_entry(
@@ -125,7 +127,11 @@ class StaggEKGTargetTempSensor(StaggEKGSensorBase):
 
 
 class StaggEKGModeSensor(StaggEKGSensorBase):
-    """Kettle mode sensor."""
+    """Kettle mode sensor.
+
+    Shows the kettle's mode, except while the water is above the target and
+    cooling toward it, which the kettle reports as heating or holding.
+    """
 
     def __init__(
         self, coordinator: StaggEKGDataUpdateCoordinator, entry: ConfigEntry
@@ -139,14 +145,23 @@ class StaggEKGModeSensor(StaggEKGSensorBase):
     def icon(self) -> str:
         """Steam the kettle icon while it's actively heating."""
         if self.coordinator.data and "state" in self.coordinator.data:
+            if self._cooling():
+                return "mdi:thermometer-chevron-down"
             if self.coordinator.data["state"].is_heating:
                 return "mdi:kettle-steam"
         return "mdi:kettle"
+
+    def _cooling(self) -> str | None:
+        state = self.coordinator.data["state"]
+        return cooling_label(state.mode, state.current_temp_c, state.set_temp_c)
 
     @property
     def native_value(self) -> str | None:
         """Return the kettle mode."""
         if self.coordinator.data and "state" in self.coordinator.data:
+            cooling = self._cooling()
+            if cooling:
+                return cooling
             mode = self.coordinator.data["state"].mode
             # Clean up mode name
             if mode.startswith("S_"):
@@ -224,3 +239,9 @@ class StaggEKGHoldEndsSensor(StaggEKGSensorBase):
     def native_value(self):
         """Return when the hold ends, or None if not holding."""
         return self.coordinator.hold_timer.ends_at(self.coordinator.hold_minutes)
+
+    @property
+    def extra_state_attributes(self):
+        """The end as a local clock time, e.g. "23:06", next to the countdown."""
+        ends = self.native_value
+        return {"ends_at": dt_util.as_local(ends).strftime("%H:%M") if ends else None}
