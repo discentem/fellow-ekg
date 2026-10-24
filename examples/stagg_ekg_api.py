@@ -9,8 +9,14 @@ import re
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
-# Modes in which the kettle is heating or holding temperature.
-ON_MODES = ("S_Heat", "S_StartupToTempr", "S_Heat+menu", "S_Hold")
+# Modes in which the kettle is heating or holding temperature. A screen on
+# top of a mode adds a suffix (S_Heat+tset, S_Hold+menu), so compare the
+# part before the `+`.
+ON_BASE_MODES = ("S_Heat", "S_StartupToTempr", "S_Hold")
+
+
+def _is_on(mode: str) -> bool:
+    return (mode or "").split("+", 1)[0] in ON_BASE_MODES
 
 
 @dataclass
@@ -230,12 +236,12 @@ class StaggEKGClient:
         import time
 
         for _ in range(max_attempts):
-            if self.get_state().mode not in ON_MODES:
+            if not _is_on(self.get_state().mode):
                 return "stopped"
             self._send_command("ss S_Off")
             time.sleep(0.5)
 
-        if self.get_state().mode in ON_MODES:
+        if _is_on(self.get_state().mode):
             return "still on"
         return "stopped"
 

@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import StaggEKGDataUpdateCoordinator
 from .const import DOMAIN
 from .kettle import EmergencyStopResult, KettleStopError
-from .rise import HEATING_MODES, HOLD_MODE
+from .rise import is_heating_mode, is_holding_mode
 
 NOTIFICATION_TITLE = "Fellow kettle: Emergency Stop"
 
@@ -22,8 +22,8 @@ def describe_result(result: EmergencyStopResult) -> str:
     mode = result.mode_before
     if mode is None:
         message = "Couldn't read the kettle first. Stop sent; it now reports Off."
-    elif mode in HEATING_MODES or mode == HOLD_MODE:
-        doing = "holding" if mode == HOLD_MODE else "heating"
+    elif is_heating_mode(mode) or is_holding_mode(mode):
+        doing = "holding" if is_holding_mode(mode) else "heating"
         message = f"Kettle was {doing} ({mode}). Stop sent; it now reports Off."
     else:
         already = "already reported Off" if mode == "S_Off" else f"reported {mode}, not heating"

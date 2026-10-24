@@ -128,6 +128,29 @@ class RapidRiseDetectorTest(unittest.TestCase):
         self.assertIsNone(detector.triggered_rate)
 
 
+class ModeTest(unittest.TestCase):
+
+    def test_screen_suffixes_keep_the_base_mode(self):
+        # Seen on a Stagg EKG Pro: S_Heat+tset while the dial was turned,
+        # S_Heat+menu and S_Hold+menu with a menu open.
+        heating = ("S_Heat", "S_Heat+menu", "S_Heat+tset", "S_StartupToTempr")
+        holding = ("S_Hold", "S_Hold+menu")
+        neither = ("S_Off", "S_Standby", "S_HeatOff", "", None)
+        for mode in heating + holding + neither:
+            with self.subTest(mode=mode):
+                self.assertEqual(rise.is_heating_mode(mode), mode in heating)
+                self.assertEqual(rise.is_holding_mode(mode), mode in holding)
+
+    def test_turning_the_dial_does_not_pause_detection(self):
+        detector = rise.RapidRiseDetector()
+        # The dial is turned 15 s in, before the 20 s grace period ends.
+        modes = ["S_Heat"] * 15 + ["S_Heat+tset"] * 3 + ["S_Heat"] * 20
+        fired = [t for t, mode in enumerate(modes)
+                 if detector.update(float(t), 20.0 + 5.0 * t,
+                                    rise.is_heating_mode(mode))]
+        self.assertEqual(fired, [20])
+
+
 class AutoStopTrackerTest(unittest.TestCase):
     """Retry decisions, polled every 5 s like the coordinator."""
 

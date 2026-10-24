@@ -26,9 +26,24 @@ DEFAULT_WINDOW_SECONDS = 10.0
 MIN_SPAN_SECONDS = 4.0
 STARTUP_GRACE_SECONDS = 20.0
 
-# Kettle modes (the `mode=` field of `state`) that count as a heat cycle.
-HEATING_MODES = ("S_Heat", "S_StartupToTempr", "S_Heat+menu")
+# Kettle modes (the `mode=` field of `state`). A screen shown on top of a
+# mode adds a suffix: S_Heat+tset while the dial is being turned,
+# S_Heat+menu or S_Hold+menu with a menu open. Compare the part before the
+# `+`; a plain prefix check would also match S_HeatOff.
+HEATING_BASE_MODES = ("S_Heat", "S_StartupToTempr")
 HOLD_MODE = "S_Hold"
+
+
+def base_mode(mode: Optional[str]) -> str:
+    return mode.split("+", 1)[0] if mode else ""
+
+
+def is_heating_mode(mode: Optional[str]) -> bool:
+    return base_mode(mode) in HEATING_BASE_MODES
+
+
+def is_holding_mode(mode: Optional[str]) -> bool:
+    return base_mode(mode) == HOLD_MODE
 
 
 class RapidRiseDetector:
@@ -208,14 +223,14 @@ def watch_heat_cycle(
             continue
 
         now = clock()
-        heating = state.mode in HEATING_MODES
+        heating = is_heating_mode(state.mode)
         started = started or heating
         if detector.update(now, state.current_temp_c, heating):
             tracker.start(now)
         if on_poll is not None:
             on_poll(state, detector.rate)
 
-        action = tracker.poll(now, heating or state.mode == HOLD_MODE, False)
+        action = tracker.poll(now, heating or is_holding_mode(state.mode), False)
         if action == ACTION_SEND:
             try:
                 stop()

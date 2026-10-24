@@ -46,6 +46,13 @@ All notable changes to this project will be documented in this file.
   `watch_heat_cycle()` instead.
 
 ### Fixed
+- Turning the dial or opening a menu no longer makes the integration think
+  the kettle is off. The kettle adds a suffix to its mode while a screen is
+  shown on top (`S_Heat+tset`, `S_Hold+menu`), and only a few exact modes
+  were recognized, so rapid-rise detection paused and restarted its grace
+  period, auto-stop could count a holding kettle as stopped, and
+  `stop_heating()` could skip sending. Modes are now compared by the part
+  before the `+`. The standalone example client gets the same fix.
 - `Lifted` now turns off when the kettle is set back down, about 5–10 s
   later. It used to stay on for a fixed 90 s after every lift, wherever the
   kettle was. It turns off after two polls in a row read a temperature

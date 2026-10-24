@@ -7,7 +7,7 @@ import re
 from typing import Optional
 from dataclasses import dataclass
 
-from .rise import HEATING_MODES, HOLD_MODE
+from .rise import is_heating_mode, is_holding_mode
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class KettleState:
     @property
     def is_heating(self) -> bool:
         """Return if kettle is in a heating cycle (based on mode, not GPIO)."""
-        return self.mode in HEATING_MODES
+        return is_heating_mode(self.mode)
 
     @property
     def is_off(self) -> bool:
@@ -81,7 +81,7 @@ class KettleState:
     @property
     def is_holding(self) -> bool:
         """Return if kettle is in Hold (keep-warm) mode."""
-        return self.mode == HOLD_MODE
+        return is_holding_mode(self.mode)
 
     @property
     def is_powered_on(self) -> bool:
