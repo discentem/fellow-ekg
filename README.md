@@ -395,6 +395,18 @@ entity: water_heater.fellow_kettle
 name: Coffee Kettle
 ```
 
+A Markdown card next to **Native Target Temperature** explains it without a
+click. The note is also in the sensor's `note` attribute, but Home Assistant
+only shows attributes in a collapsed section of the entity dialog.
+
+```yaml
+type: markdown
+content: >
+  **Native Target Temperature** is the kettle's own setting. The
+  integration sets it to Heat Up Target for boils and lowers it to
+  Hold Target while holding. Change those two instead.
+```
+
 ## Standalone Python API
 
 The repository includes a standalone Python API in [`examples/stagg_ekg_api.py`](examples/stagg_ekg_api.py) for use outside Home Assistant.
