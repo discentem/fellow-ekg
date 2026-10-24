@@ -16,13 +16,19 @@ cycle started (element/sensor lag), so the detector ignores that window.
 from __future__ import annotations
 
 import math
+import time
 from collections import deque
-from typing import Deque, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Deque, Optional, Tuple
 
 DEFAULT_RISE_THRESHOLD = 3.0  # C/s - roughly 1.8x the fastest low-fill rate seen
 DEFAULT_WINDOW_SECONDS = 10.0
 MIN_SPAN_SECONDS = 4.0
 STARTUP_GRACE_SECONDS = 20.0
+
+# Kettle modes (the `mode=` field of `state`) that count as a heat cycle.
+HEATING_MODES = ("S_Heat", "S_StartupToTempr", "S_Heat+menu")
+HOLD_MODE = "S_Hold"
 
 
 class RapidRiseDetector:
@@ -139,3 +145,89 @@ class AutoStopTracker:
             return ACTION_GIVE_UP
         self.attempts += 1
         return ACTION_SEND
+
+
+# Standalone use: a blocking watcher for scripts outside Home Assistant.
+OUTCOME_DONE = "done"                # heat cycle ended normally
+OUTCOME_STOPPED = "stopped"          # rapid rise; the kettle was turned off
+OUTCOME_STOP_FAILED = "stop_failed"  # rapid rise; the kettle didn't turn off
+OUTCOME_NOT_STARTED = "not_started"  # the kettle never started heating
+
+MAX_CONSECUTIVE_POLL_FAILURES = 6
+
+
+@dataclass
+class WatchResult:
+    outcome: str
+    triggered_rate: Optional[float]
+    stop_attempts: int
+    state: Any  # last state read from the kettle, or None
+
+
+def watch_heat_cycle(
+    get_state: Callable[[], Any],
+    stop: Callable[[], Any],
+    threshold: float = DEFAULT_RISE_THRESHOLD,
+    poll_interval: float = 5.0,
+    start_timeout: float = 30.0,
+    on_poll: Optional[Callable[[Any, Optional[float]], None]] = None,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> WatchResult:
+    """Watch one heat cycle, turning the kettle off on a rapid rise.
+
+    Blocks until the cycle ends, polling `get_state()` (anything with `mode`
+    and `current_temp_c`) every `poll_interval` seconds. On a rapid rise it
+    calls `stop()` and keeps calling it on later polls, with the same limits
+    as the Home Assistant integration, until the kettle is off or it gives
+    up. `stop` should send `ss S_Off`; never a bare `ss`, which reboots the
+    kettle. `on_poll(state, rate)` is called after each successful poll.
+    """
+    detector = RapidRiseDetector(threshold=threshold)
+    tracker = AutoStopTracker()
+    begun_at = clock()
+    started = False
+    failures = 0
+    state = None
+
+    def result(outcome):
+        return WatchResult(outcome, detector.triggered_rate,
+                           tracker.attempts, state)
+
+    while True:
+        try:
+            state = get_state()
+            failures = 0
+        except Exception:  # pylint: disable=broad-except
+            # The kettle stops answering for a few seconds around mode
+            # changes, especially while turning off. Ride that out.
+            failures += 1
+            if failures >= MAX_CONSECUTIVE_POLL_FAILURES:
+                raise
+            sleep(poll_interval)
+            continue
+
+        now = clock()
+        heating = state.mode in HEATING_MODES
+        started = started or heating
+        if detector.update(now, state.current_temp_c, heating):
+            tracker.start(now)
+        if on_poll is not None:
+            on_poll(state, detector.rate)
+
+        action = tracker.poll(now, heating or state.mode == HOLD_MODE, False)
+        if action == ACTION_SEND:
+            try:
+                stop()
+            except Exception:  # pylint: disable=broad-except
+                pass  # the next poll retries
+        elif action == ACTION_GIVE_UP:
+            return result(OUTCOME_STOP_FAILED)
+
+        if tracker.status == STOP_STOPPED:
+            return result(OUTCOME_STOPPED)
+        if not detector.triggered and started and not heating:
+            return result(OUTCOME_DONE)
+        if not started and now - begun_at >= start_timeout:
+            return result(OUTCOME_NOT_STARTED)
+        sleep(poll_interval)

@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
   event fires and a persistent notification is shown.
 - Options: `rapid_rise_auto_stop` (default on) and `rapid_rise_threshold`
   (default 3.0 °C/s, range 1.0–10.0).
+- `watch_heat_cycle()` in `rise.py` for scripts outside Home Assistant: it
+  watches one boil and turns the kettle off on a rapid rise. The standalone
+  quickstart in the README asks whether you added water, then uses it.
 - Unit tests for the detector in `tests/test_rise.py`.
 
 ## [2.0.0] - 2026-01-03

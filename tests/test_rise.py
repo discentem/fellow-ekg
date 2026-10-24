@@ -8,6 +8,8 @@ Run with:  python -m unittest discover tests   (or: pytest tests)
 import importlib.util
 import math
 import pathlib
+import sys
+import types
 import unittest
 
 _RISE_PATH = (
@@ -16,6 +18,7 @@ _RISE_PATH = (
 )
 _spec = importlib.util.spec_from_file_location("fellow_rise", _RISE_PATH)
 rise = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = rise  # dataclasses look the module up
 _spec.loader.exec_module(rise)
 
 # Real heat cycles on a Stagg EKG Pro (1200 W, firmware 1.1.75SSP), polled
@@ -176,6 +179,81 @@ class AutoStopTrackerTest(unittest.TestCase):
         tracker.reset()
         self.assertIsNone(tracker.status)
         self.assertIsNone(tracker.poll(20.0, True, False))
+
+
+
+class FakeKettle:
+    """Heats at `rate` °C/s after a 20 s lag; obeys the Nth stop."""
+
+    def __init__(self, rate, obey_stop=1, unreachable_after_stop=0):
+        self.clock = 0.0
+        self.mode = "S_Heat"
+        self.rate = rate
+        self.obey_stop = obey_stop
+        self.unreachable_polls = 0
+        self.unreachable_after_stop = unreachable_after_stop
+        self.stops = 0
+
+    def get_state(self):
+        if self.unreachable_polls:
+            self.unreachable_polls -= 1
+            raise TimeoutError("kettle not answering")
+        temp = 20.0 + max(0.0, self.clock - 20.0) * self.rate
+        if self.mode == "S_Heat" and temp >= 95.0:
+            self.mode = "S_Hold"
+        return types.SimpleNamespace(mode=self.mode, current_temp_c=temp)
+
+    def stop(self):
+        self.stops += 1
+        self.unreachable_polls = self.unreachable_after_stop
+        if self.stops >= self.obey_stop:
+            self.mode = "S_Off"
+
+    def watch(self, **kwargs):
+        def sleep(seconds):
+            self.clock += seconds
+        return rise.watch_heat_cycle(self.get_state, self.stop, sleep=sleep,
+                                     clock=lambda: self.clock, **kwargs)
+
+
+class WatchHeatCycleTest(unittest.TestCase):
+
+    def test_normal_boil_is_left_alone(self):
+        kettle = FakeKettle(rate=0.5)
+        result = kettle.watch()
+        self.assertEqual(result.outcome, rise.OUTCOME_DONE)
+        self.assertEqual(result.state.mode, "S_Hold")
+        self.assertEqual(kettle.stops, 0)
+
+    def test_rapid_rise_stops_the_kettle(self):
+        for obey_stop in (1, 3):
+            with self.subTest(obey_stop=obey_stop):
+                kettle = FakeKettle(rate=5.0, obey_stop=obey_stop,
+                                    unreachable_after_stop=2)
+                result = kettle.watch()
+                self.assertEqual(result.outcome, rise.OUTCOME_STOPPED)
+                self.assertEqual(kettle.stops, obey_stop)
+                self.assertEqual(result.stop_attempts, obey_stop)
+                self.assertAlmostEqual(result.triggered_rate, 5.0)
+
+    def test_gives_up_when_kettle_ignores_stops(self):
+        kettle = FakeKettle(rate=5.0, obey_stop=99)
+        result = kettle.watch()
+        self.assertEqual(result.outcome, rise.OUTCOME_STOP_FAILED)
+        self.assertEqual(kettle.stops, rise.DEFAULT_STOP_MAX_ATTEMPTS)
+
+    def test_kettle_that_never_heats(self):
+        kettle = FakeKettle(rate=0.5)
+        kettle.mode = "S_Off"
+        result = kettle.watch(start_timeout=30.0)
+        self.assertEqual(result.outcome, rise.OUTCOME_NOT_STARTED)
+        self.assertGreaterEqual(kettle.clock, 30.0)
+
+    def test_kettle_that_stays_unreachable_raises(self):
+        kettle = FakeKettle(rate=0.5)
+        kettle.unreachable_polls = rise.MAX_CONSECUTIVE_POLL_FAILURES
+        with self.assertRaises(TimeoutError):
+            kettle.watch()
 
 
 if __name__ == "__main__":
