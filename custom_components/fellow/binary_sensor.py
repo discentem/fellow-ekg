@@ -24,7 +24,7 @@ async def async_setup_entry(
 
     entities = [
         StaggEKGPowerBinarySensor(coordinator, entry),
-        StaggEKGLiftedBinarySensor(coordinator, entry),
+        StaggEKGOnBaseBinarySensor(coordinator, entry),
         StaggEKGRapidRiseBinarySensor(coordinator, entry),
     ]
 
@@ -96,24 +96,32 @@ class StaggEKGPowerBinarySensor(StaggEKGBinarySensorBase):
         return {}
 
 
-class StaggEKGLiftedBinarySensor(StaggEKGBinarySensorBase):
-    """On while the kettle is off its base."""
+class StaggEKGOnBaseBinarySensor(StaggEKGBinarySensorBase):
+    """Whether the kettle is sitting on its base.
 
-    _attr_device_class = BinarySensorDeviceClass.MOVING
+    On while docked, so dashboards show the active color for "on the base"
+    and grey for "lifted". The states read "On base" / "Off base" (from
+    strings.json) rather than a device class's generic wording.
+    """
+
+    _attr_translation_key = "on_base"
 
     def __init__(
         self, coordinator: StaggEKGDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize the binary sensor."""
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_lifted"
-        self._attr_name = "Lifted"
-        self._attr_icon = "mdi:kettle-pour-over"
+        self._attr_unique_id = f"{entry.entry_id}_on_base"
 
     @property
     def is_on(self) -> bool:
-        """Return true while the kettle is off the base."""
-        return self.coordinator.dock.lifted
+        """Return true while the kettle is on the base."""
+        return not self.coordinator.dock.lifted
+
+    @property
+    def icon(self) -> str:
+        """A filled kettle on the base, an outline when lifted."""
+        return "mdi:kettle" if self.is_on else "mdi:kettle-outline"
 
     @property
     def extra_state_attributes(self):

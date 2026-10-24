@@ -37,6 +37,14 @@ All notable changes to this project will be documented in this file.
   in and reachable.
 
 ### Removed
+- **Breaking:** the `Lifted` binary sensor (`binary_sensor.fellow_lifted`),
+  replaced by `On Base` (`binary_sensor.fellow_on_base`). Note the flip: On
+  Base is on while the kettle sits on its base, and reads "On base" / "Off
+  base" instead of "Moving" / "Not moving". It also tracks the base
+  properly: Lifted stayed on for a fixed 90 s after every lift, while On
+  Base switches back about 5–10 s after the kettle is set down (two polls in
+  a row with a temperature reading; the kettle reports `tempr=nan` off the
+  base). It has `last_lifted` and `last_set_down` attributes.
 - **Breaking:** the `Low Water Warning` binary sensor
   (`binary_sensor.fellow_low_water_warning`). It was on whenever the water
   was below 30 °C, so it tracked how cold the water was, not how much there
@@ -57,11 +65,6 @@ All notable changes to this project will be documented in this file.
   period, auto-stop could count a holding kettle as stopped, and
   `stop_heating()` could skip sending. Modes are now compared by the part
   before the `+`. The standalone example client gets the same fix.
-- `Lifted` now turns off when the kettle is set back down, about 5–10 s
-  later. It used to stay on for a fixed 90 s after every lift, wherever the
-  kettle was. It turns off after two polls in a row read a temperature
-  again (the kettle reports `tempr=nan` while off the base), and has new
-  `last_lifted` and `last_set_down` attributes.
 - Starting a boil from Home Assistant no longer bypasses the kettle's
   display. `ss S_Heat` sent from Off ran the heater on firmware 1.1.75SSP
   while the kettle kept reporting Off with the display dark, so neither the

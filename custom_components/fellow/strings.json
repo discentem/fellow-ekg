@@ -65,5 +65,16 @@
         "dial": "Dial emulation (fallback)"
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "on_base": {
+        "name": "On Base",
+        "state": {
+          "on": "On base",
+          "off": "Off base"
+        }
+      }
+    }
   }
 }
