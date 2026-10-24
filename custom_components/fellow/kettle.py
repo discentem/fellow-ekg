@@ -47,6 +47,14 @@ class KettleStopError(Exception):
 
 
 @dataclass
+class EmergencyStopResult:
+    """What emergency_stop() found and did."""
+
+    mode_before: Optional[str]  # None if the kettle couldn't be read first
+    attempts: int
+
+
+@dataclass
 class KettleState:
     """Represents the current state of the kettle"""
     mode: str
@@ -279,7 +287,7 @@ class StaggEKGClient:
             )
         return "stopped"
 
-    def emergency_stop(self, max_attempts: int = 3) -> str:
+    def emergency_stop(self, max_attempts: int = 3) -> EmergencyStopResult:
         """Turn everything off, whatever mode the kettle reports.
 
         Unlike stop_heating(), this never skips sending because the kettle
@@ -289,8 +297,12 @@ class StaggEKGClient:
         failed command doesn't stop the others. Never send a bare `ss`, which
         reboots the kettle.
         """
+        try:
+            mode_before: Optional[str] = self.get_state().mode
+        except Exception:  # pylint: disable=broad-except
+            mode_before = None
         errors = []
-        for _ in range(max_attempts):
+        for attempt in range(1, max_attempts + 1):
             for cmd in ("ss S_Off", "heatoff", "warmoff"):
                 try:
                     self._send_command(cmd)
@@ -303,7 +315,7 @@ class StaggEKGClient:
                 errors.append(f"state: {err}")
                 continue
             if not state.is_heating and not state.is_holding:
-                return "stopped"
+                return EmergencyStopResult(mode_before, attempt)
         raise KettleStopError(
             f"Kettle may still be on after {max_attempts} emergency stop "
             f"attempt(s): {'; '.join(errors[-3:]) or 'mode still on'}"

@@ -17,7 +17,9 @@ All notable changes to this project will be documented in this file.
   quickstart in the README asks whether you added water, then uses it.
 - `Emergency Stop` button: sends `ss S_Off` and switches both elements off
   directly, repeating until the kettle reports Off, without first checking
-  whether it already claims to be off.
+  whether it already claims to be off. Each press reports what the kettle
+  was doing and whether it stopped, in a notification and a `last_result`
+  attribute.
 - `Raw Status` diagnostic sensor: the mode and unrounded temperature from the
   latest poll, with the full `state` response in a `raw` attribute that isn't
   recorded to history.

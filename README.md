@@ -122,9 +122,19 @@ The integration will sync the temperature unit with your kettle's LCD display.
 then switches the heating and warming elements off directly, and repeats up
 to three times until the kettle reports Off. Unlike the Heating switch, it
 never skips a step because the kettle already says it is off, since the
-heater has been seen running while the kettle reported Off. If the kettle
-still reports heating after three tries, the button press fails with an
-error. The button stays pressable even when polling is failing.
+heater has been seen running while the kettle reported Off. The button stays
+pressable even when polling is failing.
+
+Each press reports what happened in a notification (replaced by the next
+press) and in the button's `last_result` attribute, for example:
+
+- "Kettle was heating (S_Heat). Stop sent; it now reports Off."
+- "Kettle already reported Off. Stop sent anyway, since the heater has been
+  seen running while the kettle reports Off."
+
+If the kettle still reports heating after three tries, the notification says
+so and the press fails with an error. Like every Home Assistant button, its
+state is the time it was last pressed, which is why it shows "2 minutes ago".
 
 ### Raw Status
 
