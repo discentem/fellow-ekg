@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
 - `watch_heat_cycle()` in `rise.py` for scripts outside Home Assistant: it
   watches one boil and turns the kettle off on a rapid rise. The standalone
   quickstart in the README asks whether you added water, then uses it.
+- `Hold Duration` select: 15, 30, 45 or 60 minutes, the same choices as the
+  kettle's hold menu. It writes `setsetting hold <n>` and reads it back, and
+  re-reads the setting about once a minute to pick up changes made on the
+  kettle.
 - `Emergency Stop` button: sends `ss S_Off` and switches both elements off
   directly, repeating until the kettle reports Off, without first checking
   whether it already claims to be off. Each press reports what the kettle

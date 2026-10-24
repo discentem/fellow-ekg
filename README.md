@@ -52,6 +52,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `switch.fellow_heating` | Switch | Heating element control |
 | `switch.fellow_warming` | Switch | Warming mode control |
 | `binary_sensor.fellow_power` | Binary Sensor | On while the kettle answers Home Assistant; off after two failed polls in a row (about 15–30 s) |
+| `select.fellow_hold_duration` | Select | How long the kettle holds temperature after a boil: 15, 30, 45 or 60 min |
 | `button.fellow_emergency_stop` | Button | Kill switch: turns the heater and warmer off, whatever mode the kettle reports |
 | `sensor.fellow_raw_status` | Sensor (diagnostic) | Mode and unrounded temperature from the latest poll; full `state` response in the `raw` attribute |
 | `binary_sensor.fellow_rapid_temperature_rise` | Binary Sensor | Temperature climbing fast enough to suggest an empty kettle |
@@ -115,6 +116,14 @@ The integration will sync the temperature unit with your kettle's LCD display.
 3. Click "CONFIGURE"
 4. Select your preferred unit
 5. Submit - the kettle display updates immediately
+
+### Hold Duration
+
+`select.fellow_hold_duration` sets how long the kettle keeps the water at
+temperature after a boil, with the same choices as the kettle's hold menu:
+15, 30, 45 or 60 minutes. The kettle's display shows the change straight
+away. A change made from the kettle's menu shows up in Home Assistant within
+about a minute.
 
 ### Emergency Stop
 

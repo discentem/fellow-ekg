@@ -43,6 +43,11 @@ MAX_CONSECUTIVE_TRANSIENT_FAILURES = 6
 # answering while it turns off" blip is a single failed poll.
 POWER_OFF_AFTER_FAILURES = 2
 
+# The hold duration is a setting, not live state, so it's re-read about once
+# a minute rather than every poll; that still picks up a change made from
+# the kettle's own menu.
+HOLD_REFRESH_POLLS = 12
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
@@ -51,6 +56,7 @@ PLATFORMS: list[Platform] = [
     Platform.WATER_HEATER,
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.SELECT,
 ]
 
 
@@ -147,6 +153,8 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         self.client = client
         self._consecutive_transient_failures = 0
         self.dock = DockTracker()
+        self.hold_minutes: int | None = None
+        self._polls_since_hold_read = HOLD_REFRESH_POLLS
         self.last_poll = None
         self.rise_detector = RapidRiseDetector(threshold=rise_threshold)
         self.rise_auto_stop = rise_auto_stop
@@ -198,6 +206,16 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
 
         self._consecutive_transient_failures = 0
         self.last_poll = dt_util.utcnow()
+
+        self._polls_since_hold_read += 1
+        if self._polls_since_hold_read >= HOLD_REFRESH_POLLS:
+            self._polls_since_hold_read = 0
+            try:
+                self.hold_minutes = await self.hass.async_add_executor_job(
+                    self.client.get_hold_minutes
+                )
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.debug("Couldn't read the hold setting: %s", err)
 
         if self.dock.update(self.last_poll, state.is_docked) == LIFTED:
             # Lifting usually means a refill, so clear any rapid-rise alert.

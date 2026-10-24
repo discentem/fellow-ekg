@@ -42,6 +42,14 @@ class KettleWakeError(Exception):
     """The kettle could not be turned on in a way that lights the display."""
 
 
+class KettleSettingError(Exception):
+    """A setting written to the kettle didn't read back as written."""
+
+
+# Hold durations the kettle's own hold menu offers, in minutes.
+HOLD_MINUTES_OPTIONS = (15, 30, 45, 60)
+
+
 class KettleStopError(Exception):
     """The kettle still reports heating or holding after an emergency stop."""
 
@@ -355,6 +363,29 @@ class StaggEKGClient:
         response = self._send_command("prtsettings")
         match = re.search(r'guide=(\d+)', response)
         return bool(int(match.group(1))) if match else False
+
+    def get_hold_minutes(self) -> Optional[int]:
+        """How long the kettle holds temperature after a boil, in minutes."""
+        match = re.search(r"st: hold=(\d+)", self._send_command("prtsettings"))
+        return int(match.group(1)) if match else None
+
+    def set_hold_minutes(self, minutes: int) -> int:
+        """Set the hold duration and check that it took.
+
+        Only the values the kettle's hold menu offers are accepted. The
+        kettle's display shows the new value straight away.
+        """
+        if minutes not in HOLD_MINUTES_OPTIONS:
+            raise ValueError(
+                f"Hold must be one of {HOLD_MINUTES_OPTIONS} minutes, not {minutes}"
+            )
+        self._send_command(f"setsetting hold {minutes}")
+        actual = self.get_hold_minutes()
+        if actual != minutes:
+            raise KettleSettingError(
+                f"Kettle reports hold={actual} after setting it to {minutes}"
+            )
+        return actual
 
     def set_guide_mode(self, enabled: bool) -> str:
         """Enable or disable guide mode."""
