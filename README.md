@@ -299,9 +299,7 @@ kettle.heat_to_temperature(95)
 
 result = watch_heat_cycle(
     kettle.get_state,
-    # Not kettle.stop_heating(): in this client it presses the dial, which
-    # can start the kettle again. Never send a bare `ss`: it reboots the kettle.
-    stop=lambda: kettle.get_raw_response("ss S_Off"),
+    stop=kettle.stop_heating,
     on_poll=lambda state, rate: print(f"{state.current_temp_c}°C"),
 )
 print(result.outcome)  # done, stopped, stop_failed or not_started

@@ -9,6 +9,9 @@ import re
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
+# Modes in which the kettle is heating or holding temperature.
+ON_MODES = ("S_Heat", "S_StartupToTempr", "S_Heat+menu", "S_Hold")
+
 
 @dataclass
 class KettleState:
@@ -225,20 +228,27 @@ class StaggEKGClient:
         # Press button 2 (dial button) - wakes if off and starts heating
         return self._send_command("2")
 
-    def stop_heating(self) -> str:
+    def stop_heating(self, max_attempts: int = 3) -> str:
         """
-        Stop heating and return to standby.
+        Stop heating or holding and turn the kettle off.
+
+        Sends `ss S_Off`, which puts the firmware in the Off state directly,
+        and checks that it took, retrying because the kettle sometimes drops
+        the command during a state change. Pressing the dial (button 2)
+        instead toggles, so it can start the kettle again. Never send a bare
+        `ss`: it reboots the kettle.
         """
         import time
 
-        # Press button 2 to stop/cancel heating
-        self._send_command("2")
+        for _ in range(max_attempts):
+            if self.get_state().mode not in ON_MODES:
+                return "stopped"
+            self._send_command("ss S_Off")
+            time.sleep(0.5)
 
-        # Small delay to let kettle process the command
-        time.sleep(0.5)
-
-        # Also turn off heating element to ensure it's off
-        return self.heat_off()
+        if self.get_state().mode in ON_MODES:
+            return "still on"
+        return "stopped"
 
     def get_wifi_info(self) -> str:
         """Get WiFi configuration and status"""

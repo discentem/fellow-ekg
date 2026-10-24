@@ -17,6 +17,11 @@ All notable changes to this project will be documented in this file.
   quickstart in the README asks whether you added water, then uses it.
 - Unit tests for the detector in `tests/test_rise.py`.
 
+### Fixed
+- The example client's `stop_heating()` sends `ss S_Off` and checks that it
+  took, like the integration's client. It used to press the dial, which
+  toggles, so it could start a stopped kettle again.
+
 ## [2.0.0] - 2026-01-03
 
 ### Breaking Changes
