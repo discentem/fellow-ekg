@@ -26,6 +26,7 @@ async def async_setup_entry(
         StaggEKGPowerBinarySensor(coordinator, entry),
         StaggEKGWaterBinarySensor(coordinator, entry),
         StaggEKGLiftedBinarySensor(coordinator, entry),
+        StaggEKGRapidRiseBinarySensor(coordinator, entry),
     ]
 
     async_add_entities(entities)
@@ -105,6 +106,49 @@ class StaggEKGLiftedBinarySensor(StaggEKGBinarySensorBase):
     def is_on(self) -> bool:
         """Return true if the kettle was recently lifted from the base."""
         return self.coordinator.recently_lifted
+
+
+def _round_rate(rate: float | None) -> float | None:
+    return round(rate, 2) if rate is not None else None
+
+
+class StaggEKGRapidRiseBinarySensor(StaggEKGBinarySensorBase):
+    """Binary sensor for an implausibly fast temperature rise while heating.
+
+    A fast rise suggests an empty or nearly empty kettle. Stays on until the
+    next heat cycle starts or the kettle is lifted off the base.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self, coordinator: StaggEKGDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_rapid_rise"
+        self._attr_name = "Rapid Temperature Rise"
+        self._attr_icon = "mdi:kettle-alert"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if a rapid rise was seen during this heat cycle."""
+        return self.coordinator.rise_detector.triggered
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional state attributes."""
+        detector = self.coordinator.rise_detector
+        return {
+            # Live 10 s average; None when not heating or no reading.
+            "rise_rate": _round_rate(detector.rate),
+            # Rate that tripped the alert; None until it triggers.
+            "triggered_rate": _round_rate(detector.triggered_rate),
+            "threshold": detector.threshold,
+            "auto_stop": self.coordinator.rise_auto_stop,
+            # None, "pending", "stopped" or "failed".
+            "stop_status": self.coordinator.auto_stop.status,
+        }
 
 
 class StaggEKGWaterBinarySensor(StaggEKGBinarySensorBase):

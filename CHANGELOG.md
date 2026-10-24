@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Rapid temperature-rise detection as a proxy for an empty or nearly empty
+  kettle. New `Rapid Temperature Rise` binary sensor and `fellow_rapid_rise`
+  event; the kettle is turned off automatically unless disabled, retrying
+  until it reports Off. If it doesn't, a `fellow_rapid_rise_stop_failed`
+  event fires and a persistent notification is shown.
+- Options: `rapid_rise_auto_stop` (default on) and `rapid_rise_threshold`
+  (default 3.0 °C/s, range 1.0–10.0).
+- Unit tests for the detector in `tests/test_rise.py`.
+
 ## [2.0.0] - 2026-01-03
 
 ### Breaking Changes

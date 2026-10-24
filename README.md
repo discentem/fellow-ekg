@@ -24,6 +24,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 
 🔒 **Safety Features**
 - Low water detection warning
+- Rapid temperature-rise detection (likely empty kettle), with optional auto-stop
 - Automatic power management
 - Temperature range limits
 - Safe heating cycle control
@@ -53,6 +54,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `switch.fellow_warming` | Switch | Warming mode control |
 | `binary_sensor.fellow_power` | Binary Sensor | Power on/off status |
 | `binary_sensor.fellow_low_water_warning` | Binary Sensor | Water detection alert |
+| `binary_sensor.fellow_rapid_temperature_rise` | Binary Sensor | Temperature climbing fast enough to suggest an empty kettle |
 
 ## Installation
 
@@ -113,6 +115,56 @@ The integration will sync the temperature unit with your kettle's LCD display.
 3. Click "CONFIGURE"
 4. Select your preferred unit
 5. Submit - the kettle display updates immediately
+
+### Rapid Temperature Rise Detection
+
+The kettle has no water-level sensor, but while it heats, the rate at which
+the temperature climbs tracks how much water is in it: the same heater warms
+a small amount of water, or an empty kettle, much faster than a full one.
+Measured on a Stagg EKG Pro (1200 W):
+
+| Fill | Average rise | Peak (10 s average) |
+|------|--------------|---------------------|
+| Nearly full (~0.9 L) | ~0.44 °C/s | ~0.5 °C/s |
+| Low (~0.2 L) | ~1.25 °C/s | ~1.5 °C/s |
+
+During a heat cycle the integration averages the temperature rise over a
+10-second window, ignoring the first 20 seconds, when the reading hasn't
+moved yet. If the rate goes above the threshold (default **3.0 °C/s**):
+
+- `binary_sensor.fellow_rapid_temperature_rise` turns on. It stays on until
+  the next heat cycle starts or the kettle is lifted off the base. Attributes:
+  `rise_rate` (live 10 s average, empty when not heating), `triggered_rate`
+  (the rate that tripped the alert), `threshold`, `auto_stop` and
+  `stop_status` (`pending`, `stopped` or `failed`; empty if auto-stop is off).
+- A `fellow_rapid_rise` event fires with `rate`, `threshold` and `auto_stop`.
+- If **Stop heating on rapid temperature rise** is enabled (the default), the
+  kettle is turned off. The kettle sometimes ignores a stop command or stops
+  answering for a few seconds, so the integration keeps retrying on each poll
+  until the kettle reports Off. If it is still on after 10 attempts or 60
+  seconds, it gives up, fires a `fellow_rapid_rise_stop_failed` event (`rate`,
+  `attempts`) and shows a persistent notification.
+
+Both settings are under Settings → Devices & Services → Fellow → Configure.
+The threshold can be set from 1.0 to 10.0 °C/s.
+
+This is a heuristic, not a water sensor. The default comes from one kettle
+at two fill levels; an empty kettle was not measured. The kettle's own
+boil-dry protection is still the real safeguard. Example automation:
+
+```yaml
+automation:
+  - alias: "Kettle may be empty"
+    trigger:
+      - platform: event
+        event_type: fellow_rapid_rise
+    action:
+      - service: notify.mobile_app_phone
+        data:
+          message: >
+            Kettle temperature rising at {{ trigger.event.data.rate }} °C/s.
+            Is there water in it?
+```
 
 ## Usage
 
