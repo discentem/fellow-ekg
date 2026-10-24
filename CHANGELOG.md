@@ -43,7 +43,8 @@ All notable changes to this project will be documented in this file.
 - Unit tests for the detector in `tests/test_rise.py`.
 
 ### Changed
-- `Target Temperature` is now explicitly the kettle's own target, read-only.
+- `Target Temperature` is renamed `Native Target Temperature` (same entity
+  ID) and is explicitly the kettle's own target, read-only.
   During a lowered hold it shows the Hold Target; its `role` attribute says
   whether it's the `heat_up` or `hold` target. Set `Heat Up Target` and
   `Hold Target` instead.

@@ -103,7 +103,9 @@ class StaggEKGTargetTempSensor(StaggEKGSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.entry_id}_target_temp"
-        self._attr_name = "Target Temperature"
+        # "Native" so a dashboard card shows this is the kettle's own setting,
+        # not one of the two the integration manages.
+        self._attr_name = "Native Target Temperature"
 
     @property
     def native_value(self) -> float | None:

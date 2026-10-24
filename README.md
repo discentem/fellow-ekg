@@ -47,7 +47,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 |--------|------|---------|
 | `water_heater.fellow_kettle` | Water Heater | Main control interface |
 | `sensor.fellow_current_temperature` | Sensor | Real-time water temperature |
-| `sensor.fellow_target_temperature` | Sensor | The kettle's own target, read-only: the Heat Up Target during a boil, the Hold Target during a lowered hold (`role` attribute says which) |
+| `sensor.fellow_target_temperature` | Sensor | "Native Target Temperature": the kettle's own target, read-only: the Heat Up Target during a boil, the Hold Target during a lowered hold (`role` attribute says which) |
 | `number.fellow_heat_up_target` | Number | What a boil heats to (the water heater's target) |
 | `number.fellow_hold_target` | Number | What the kettle holds at after a boil |
 | `sensor.fellow_hold_ends` | Sensor (timestamp) | When the current hold ends, shown as a countdown |
