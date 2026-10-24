@@ -278,18 +278,51 @@ The repository includes a standalone Python API in [`examples/stagg_ekg_api.py`]
 
 ### Quick Start
 
+This boils water only after you confirm the kettle has water in it, then
+watches for a temperature rise too fast for a kettle with water in it (see
+[Rapid Temperature Rise Detection](#rapid-temperature-rise-detection)) and
+turns the kettle off if it sees one. `rise.py` has no Home Assistant imports,
+so run it with both folders on your path, from the repository root:
+`PYTHONPATH=examples:custom_components/fellow python boil.py`.
+
 ```python
+import time
+
+from rise import RapidRiseDetector
 from stagg_ekg_api import StaggEKGClient
+
+HEATING_MODES = ("S_Heat", "S_StartupToTempr", "S_Heat+menu")
 
 # Initialize
 kettle = StaggEKGClient(host="192.168.1.100")
 
+if input("Did you add water to the kettle? [y/N] ").strip().lower() != "y":
+    raise SystemExit("Not heating. Fill the kettle and run this again.")
+
 # Heat water to 95°C
 kettle.heat_to_temperature(95)
 
-# Check status
-state = kettle.get_state()
-print(f"Current: {state.current_temp_c}°C / Target: {state.set_temp_c}°C")
+# Watch the boil
+detector = RapidRiseDetector()  # 3.0 °C/s by default
+started = False
+while True:
+    time.sleep(5)
+    state = kettle.get_state()
+    heating = state.mode in HEATING_MODES
+    started = started or heating
+    print(f"Current: {state.current_temp_c}°C / Target: {state.set_temp_c}°C")
+
+    if detector.update(time.monotonic(), state.current_temp_c, heating):
+        print(f"Rising at {detector.triggered_rate:.1f} °C/s: the kettle may "
+              "be empty. Turning it off.")
+    if detector.triggered and (heating or state.mode == "S_Hold"):
+        # Resent on every poll until it takes. Use `ss S_Off`, not
+        # stop_heating(): that presses the dial, which can start the kettle
+        # again. Never send a bare `ss`, which reboots the kettle.
+        kettle.get_raw_response("ss S_Off")
+        continue
+    if started and not heating:
+        break  # at temperature, or turned off
 ```
 
 See [examples/README.md](examples/README.md) for complete usage examples.
