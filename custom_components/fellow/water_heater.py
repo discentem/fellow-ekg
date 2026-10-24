@@ -11,11 +11,13 @@ from homeassistant.components.water_heater import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature, STATE_OFF
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import StaggEKGDataUpdateCoordinator
 from .const import DOMAIN, CONF_TEMPERATURE_UNIT, UNIT_CELSIUS, UNIT_FAHRENHEIT
+from .switch import KEEP_WARM_HINT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -162,17 +164,16 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
             await self.hass.async_add_executor_job(
                 self.coordinator.client.stop_heating
             )
-            await self.hass.async_add_executor_job(
-                self.coordinator.client.set_warming, False
-            )
+            await self.hass.async_add_executor_job(self.coordinator.client.end_hold)
         elif operation_mode == OPERATION_MODE_HEAT:
             await self.hass.async_add_executor_job(
                 self.coordinator.client.start_heating
             )
         elif operation_mode == OPERATION_MODE_WARM:
-            await self.hass.async_add_executor_job(
-                self.coordinator.client.set_warming, True
-            )
+            # Like the Warming / Holding switch: a hold only comes from a boil.
+            state = (self.coordinator.data or {}).get("state")
+            if not (state and state.is_holding):
+                raise HomeAssistantError(KEEP_WARM_HINT)
 
         await self.coordinator.async_request_refresh()
 
@@ -188,7 +189,5 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
         await self.hass.async_add_executor_job(
             self.coordinator.client.stop_heating
         )
-        await self.hass.async_add_executor_job(
-            self.coordinator.client.set_warming, False
-        )
+        await self.hass.async_add_executor_job(self.coordinator.client.end_hold)
         await self.coordinator.async_request_refresh()

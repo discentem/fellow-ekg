@@ -30,6 +30,13 @@ All notable changes to this project will be documented in this file.
 - Unit tests for the detector in `tests/test_rise.py`.
 
 ### Changed
+- `Warming` is now `Warming / Holding` and follows the kettle's hold
+  instead of driving the warming element directly (`warmon` / `warmoff`),
+  which the kettle's own state and display don't reflect. It turns on when a
+  boil finishes and the kettle holds; turning it off ends the hold with
+  `ss S_Off`. Turning it on is refused, so a hold only ever comes from a boil
+  and never runs past the Hold Duration. The water heater's warm and off
+  modes match.
 - `Power` now means the kettle answers Home Assistant: on while polls
   succeed, off after two failed polls in a row (about 15–30 s), and never
   unavailable. It used to be on whenever the kettle wasn't in `S_Off`, which

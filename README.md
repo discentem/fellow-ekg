@@ -50,7 +50,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `sensor.fellow_target_temperature` | Sensor | Target temperature setting |
 | `sensor.fellow_mode` | Sensor | Operating mode (Off, Heat, Standby) |
 | `switch.fellow_heating` | Switch | Heating element control |
-| `switch.fellow_warming` | Switch | Warming mode control |
+| `switch.fellow_warming` | Switch | "Warming / Holding": on while the kettle holds the water at temperature after a boil; turning it off ends the hold |
 | `binary_sensor.fellow_power` | Binary Sensor | On while the kettle answers Home Assistant; off after two failed polls in a row (about 15–30 s) |
 | `binary_sensor.fellow_on_base` | Binary Sensor | "On base" while the kettle sits on its base, "Off base" when lifted |
 | `select.fellow_hold_duration` | Select | How long the kettle holds temperature after a boil: 15, 30, 45 or 60 min |
@@ -125,6 +125,21 @@ temperature after a boil, with the same choices as the kettle's hold menu:
 15, 30, 45 or 60 minutes. The kettle's display shows the change straight
 away. A change made from the kettle's menu shows up in Home Assistant within
 about a minute.
+
+### Warming / Holding
+
+The kettle has no separate warming mode: once a boil reaches the target, it
+holds the water there for the Hold Duration. The **Warming / Holding** switch
+shows that hold.
+
+- It turns **on by itself** when a boil finishes and the kettle starts
+  holding.
+- Turning it **off** ends the hold early, and the kettle turns off.
+- Turning it **on** yourself is refused: a hold only comes from a boil, so it
+  never runs longer than the Hold Duration. To keep water warm again, start a
+  new boil with Heating.
+
+The water heater entity's warm mode follows the same rule.
 
 ### Emergency Stop
 

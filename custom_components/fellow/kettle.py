@@ -329,12 +329,18 @@ class StaggEKGClient:
             f"attempt(s): {'; '.join(errors[-3:]) or 'mode still on'}"
         )
 
-    def set_warming(self, on: bool) -> str:
-        """Enable or disable keep-warm mode."""
-        if on:
-            return self.warm_on()
-        else:
-            return self.warm_off()
+    def end_hold(self) -> str:
+        """Stop keeping the water warm.
+
+        Ends a hold with stop_heating() (`ss S_Off`), and clears the warming
+        element if its flag is set. A boil in progress is left alone.
+        """
+        state = self.get_state()
+        if state.is_holding:
+            self.stop_heating()
+        if state.warming:
+            self.warm_off()
+        return "off"
 
     def _ensure_awake(self) -> KettleState:
         """Wake the kettle if it's off via button 2. Returns current state.
