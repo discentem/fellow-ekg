@@ -51,7 +51,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `sensor.fellow_mode` | Sensor | Operating mode (Off, Heat, Standby) |
 | `switch.fellow_heating` | Switch | Heating element control |
 | `switch.fellow_warming` | Switch | Warming mode control |
-| `binary_sensor.fellow_power` | Binary Sensor | Power on/off status |
+| `binary_sensor.fellow_power` | Binary Sensor | On while the kettle answers Home Assistant; off after two failed polls in a row (about 15–30 s) |
 | `button.fellow_emergency_stop` | Button | Kill switch: turns the heater and warmer off, whatever mode the kettle reports |
 | `sensor.fellow_raw_status` | Sensor (diagnostic) | Mode and unrounded temperature from the latest poll; full `state` response in the `raw` attribute |
 | `binary_sensor.fellow_rapid_temperature_rise` | Binary Sensor | Temperature climbing fast enough to suggest an empty kettle |

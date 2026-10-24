@@ -25,6 +25,13 @@ All notable changes to this project will be documented in this file.
   recorded to history.
 - Unit tests for the detector in `tests/test_rise.py`.
 
+### Changed
+- `Power` now means the kettle answers Home Assistant: on while polls
+  succeed, off after two failed polls in a row (about 15–30 s), and never
+  unavailable. It used to be on whenever the kettle wasn't in `S_Off`, which
+  the Mode sensor already shows, so it read Off for a kettle that was plugged
+  in and reachable.
+
 ### Removed
 - **Breaking:** the `Low Water Warning` binary sensor
   (`binary_sensor.fellow_low_water_warning`). It was on whenever the water

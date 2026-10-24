@@ -55,7 +55,12 @@ class StaggEKGBinarySensorBase(CoordinatorEntity, BinarySensorEntity):
 
 
 class StaggEKGPowerBinarySensor(StaggEKGBinarySensorBase):
-    """Binary sensor for kettle power state."""
+    """On while the kettle answers Home Assistant, off once it stops.
+
+    It goes off after two failed polls in a row (about 15-30 s), while the
+    other entities keep the last known state for longer. Whether the kettle
+    is awake or heating is what the Mode sensor is for.
+    """
 
     _attr_device_class = BinarySensorDeviceClass.POWER
 
@@ -68,11 +73,14 @@ class StaggEKGPowerBinarySensor(StaggEKGBinarySensorBase):
         self._attr_name = "Power"
 
     @property
+    def available(self) -> bool:
+        """Always available, so an unreachable kettle shows Off."""
+        return True
+
+    @property
     def is_on(self) -> bool:
-        """Return true if kettle is powered on."""
-        if self.coordinator.data and "state" in self.coordinator.data:
-            return self.coordinator.data["state"].is_powered_on
-        return False
+        """Return true while the kettle is answering polls."""
+        return self.coordinator.reachable
 
     @property
     def extra_state_attributes(self):
@@ -83,6 +91,7 @@ class StaggEKGPowerBinarySensor(StaggEKGBinarySensorBase):
                 "mode": state.mode,
                 "screen": state.screen_name,
                 "in_menu": state.is_in_menu,
+                "last_poll": self.coordinator.last_poll,
             }
         return {}
 

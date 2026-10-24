@@ -38,6 +38,11 @@ from .rise import (
 # offline kettle doesn't show stale data forever.
 MAX_CONSECUTIVE_TRANSIENT_FAILURES = 6
 
+# The Power sensor goes off after this many failed polls in a row, well
+# before the rest of the device goes unavailable. The kettle's usual "not
+# answering while it turns off" blip is a single failed poll.
+POWER_OFF_AFTER_FAILURES = 2
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
@@ -153,6 +158,14 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=5),
+        )
+
+    @property
+    def reachable(self) -> bool:
+        """Whether the kettle is answering polls (what Power shows)."""
+        return (
+            self.last_update_success
+            and self._consecutive_transient_failures < POWER_OFF_AFTER_FAILURES
         )
 
     async def _async_update_data(self):
