@@ -20,7 +20,9 @@ All notable changes to this project will be documented in this file.
   the Heat Up Target is put back when the hold runs out or the kettle is
   turned off (not when it's lifted to pour). Outside a lowered hold, Heat Up
   Target follows the kettle's own target. Both are saved across restarts.
-  The water heater's target is the Heat Up Target.
+  The water heater's target is the Heat Up Target, so
+  `water_heater.set_temperature` keeps working as before; it also shows the
+  Hold Target as a `hold_temperature` attribute.
 - `Hold Ends` sensor: when the current hold ends, as a countdown.
 - `Hold Duration` select: 15, 30, 45 or 60 minutes, the same choices as the
   kettle's hold menu. It writes `setsetting hold <n>` and reads it back, and

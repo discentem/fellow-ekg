@@ -145,6 +145,28 @@ turning the dial still works. A Hold Target at or above the Heat Up Target
 means the kettle holds at the Heat Up Target, as before. Both are kept by
 Home Assistant, so lowering the hold only works while it's running.
 
+In automations, `water_heater.set_temperature` sets the Heat Up Target, as it
+always set the kettle's target, so existing automations keep working. Set the
+Hold Target with `number.set_value`; the water heater also shows it as a
+`hold_temperature` attribute.
+
+```yaml
+# Boil to 100°C, then hold at 85°C
+- service: water_heater.set_temperature
+  target:
+    entity_id: water_heater.fellow_kettle
+  data:
+    temperature: 100
+- service: number.set_value
+  target:
+    entity_id: number.fellow_hold_target
+  data:
+    value: 85
+- service: water_heater.turn_on
+  target:
+    entity_id: water_heater.fellow_kettle
+```
+
 If you lower the Heat Up Target below the water's current temperature
 mid-boil, the kettle stays in its heating mode while the water cools, and
 starts holding once the water reaches the target.

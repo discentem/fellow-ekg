@@ -101,16 +101,20 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
             return temp_c
         return None
 
+    def _in_unit(self, temp_c: float | None) -> float | None:
+        if temp_c is not None and self._attr_temperature_unit == UnitOfTemperature.FAHRENHEIT:
+            return round(temp_c * 9/5 + 32, 1)
+        return temp_c
+
     @property
     def target_temperature(self) -> float | None:
-        """Return the Heat Up Target (what a boil heats to)."""
-        temp_c = self.coordinator.targets.heat_target
-        if temp_c is not None:
-            # Convert to configured unit
-            if self._attr_temperature_unit == UnitOfTemperature.FAHRENHEIT:
-                return round(temp_c * 9/5 + 32, 1)
-            return temp_c
-        return None
+        """Return the Heat Up Target (what a boil heats to).
+
+        water_heater.set_temperature sets it, as it always set the kettle's
+        target, so existing automations keep working.
+        """
+        return self._in_unit(self.coordinator.targets.heat_target)
+
 
     @property
     def current_operation(self) -> str:
@@ -132,11 +136,16 @@ class StaggEKGWaterHeater(CoordinatorEntity, WaterHeaterEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return extra state attributes."""
+        """Return extra state attributes.
+
+        hold_temperature is the Hold Target, shown here for reference; set it
+        with number.set_value on the Hold Target entity.
+        """
         if not self.coordinator.data or "state" not in self.coordinator.data:
             return None
         return {
             "docked": self.coordinator.data["state"].is_docked,
+            "hold_temperature": self._in_unit(self.coordinator.targets.hold_target),
         }
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
