@@ -52,6 +52,8 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `switch.fellow_heating` | Switch | Heating element control |
 | `switch.fellow_warming` | Switch | Warming mode control |
 | `binary_sensor.fellow_power` | Binary Sensor | Power on/off status |
+| `button.fellow_emergency_stop` | Button | Kill switch: turns the heater and warmer off, whatever mode the kettle reports |
+| `sensor.fellow_raw_status` | Sensor (diagnostic) | Mode and unrounded temperature from the latest poll; full `state` response in the `raw` attribute |
 | `binary_sensor.fellow_rapid_temperature_rise` | Binary Sensor | Temperature climbing fast enough to suggest an empty kettle |
 
 ## Installation
@@ -113,6 +115,24 @@ The integration will sync the temperature unit with your kettle's LCD display.
 3. Click "CONFIGURE"
 4. Select your preferred unit
 5. Submit - the kettle display updates immediately
+
+### Emergency Stop
+
+`button.fellow_emergency_stop` turns everything off. It sends `ss S_Off`,
+then switches the heating and warming elements off directly, and repeats up
+to three times until the kettle reports Off. Unlike the Heating switch, it
+never skips a step because the kettle already says it is off, since the
+heater has been seen running while the kettle reported Off. If the kettle
+still reports heating after three tries, the button press fails with an
+error. The button stays pressable even when polling is failing.
+
+### Raw Status
+
+`sensor.fellow_raw_status` is a diagnostic sensor that shows what the kettle
+returned on the latest poll: its state is the mode and the unrounded
+temperature (for example `S_Heat 74.280831 C`), and the `raw` attribute holds
+the full `state` response. `raw` isn't saved to history, so use **Current
+Temperature** to graph the temperature over time.
 
 ### Rapid Temperature Rise Detection
 

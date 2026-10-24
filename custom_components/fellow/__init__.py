@@ -44,7 +44,13 @@ LIFT_COOLDOWN_SECONDS = 90
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.WATER_HEATER, Platform.BINARY_SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.WATER_HEATER,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -141,6 +147,7 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         self._consecutive_transient_failures = 0
         self._was_docked: bool | None = None
         self._lifted_at = None
+        self.last_poll = None
         self.rise_detector = RapidRiseDetector(threshold=rise_threshold)
         self.rise_auto_stop = rise_auto_stop
         self.auto_stop = AutoStopTracker()
@@ -196,6 +203,7 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error communicating with API: {err}")
 
         self._consecutive_transient_failures = 0
+        self.last_poll = dt_util.utcnow()
 
         # Track docked → undocked transition for lift detection. We only
         # care about the falling edge; the cooldown window in

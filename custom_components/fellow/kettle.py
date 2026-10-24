@@ -42,6 +42,10 @@ class KettleWakeError(Exception):
     """The kettle could not be turned on in a way that lights the display."""
 
 
+class KettleStopError(Exception):
+    """The kettle still reports heating or holding after an emergency stop."""
+
+
 @dataclass
 class KettleState:
     """Represents the current state of the kettle"""
@@ -54,6 +58,7 @@ class KettleState:
     heating: bool
     warming: bool
     screen_name: Optional[str] = None  # Current screen showing
+    raw: str = ""  # `state` response text, HTML wrapper stripped
 
     @property
     def is_heating(self) -> bool:
@@ -182,6 +187,10 @@ class StaggEKGClient:
         return KettleState(
             mode=mode_match.group(1),
             screen_name=screen_match.group(1).strip() if screen_match else None,
+            raw="\n".join(
+                line.strip() for line in response.splitlines()
+                if line.strip() and not line.strip().startswith("<")
+            ),
             current_temp_c=float(temp_c_match.group(1)) if temp_c_match else None,
             set_temp_c=float(temp_set_c_match.group(1)) if temp_set_c_match else 0,
             units=int(units_match.group(1)) if units_match else 1,
@@ -269,6 +278,36 @@ class StaggEKGClient:
                 max_attempts, state.mode,
             )
         return "stopped"
+
+    def emergency_stop(self, max_attempts: int = 3) -> str:
+        """Turn everything off, whatever mode the kettle reports.
+
+        Unlike stop_heating(), this never skips sending because the kettle
+        already reports Off: on firmware 1.1.75SSP the heater has been seen
+        running while the mode read S_Off. Each attempt sends `ss S_Off`,
+        then switches both elements off directly (`heatoff`, `warmoff`); a
+        failed command doesn't stop the others. Never send a bare `ss`, which
+        reboots the kettle.
+        """
+        errors = []
+        for _ in range(max_attempts):
+            for cmd in ("ss S_Off", "heatoff", "warmoff"):
+                try:
+                    self._send_command(cmd)
+                except Exception as err:  # pylint: disable=broad-except
+                    errors.append(f"{cmd}: {err}")
+            time.sleep(0.5)
+            try:
+                state = self.get_state()
+            except Exception as err:  # pylint: disable=broad-except
+                errors.append(f"state: {err}")
+                continue
+            if not state.is_heating and not state.is_holding:
+                return "stopped"
+        raise KettleStopError(
+            f"Kettle may still be on after {max_attempts} emergency stop "
+            f"attempt(s): {'; '.join(errors[-3:]) or 'mode still on'}"
+        )
 
     def set_warming(self, on: bool) -> str:
         """Enable or disable keep-warm mode."""

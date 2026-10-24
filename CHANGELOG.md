@@ -15,6 +15,12 @@ All notable changes to this project will be documented in this file.
 - `watch_heat_cycle()` in `rise.py` for scripts outside Home Assistant: it
   watches one boil and turns the kettle off on a rapid rise. The standalone
   quickstart in the README asks whether you added water, then uses it.
+- `Emergency Stop` button: sends `ss S_Off` and switches both elements off
+  directly, repeating until the kettle reports Off, without first checking
+  whether it already claims to be off.
+- `Raw Status` diagnostic sensor: the mode and unrounded temperature from the
+  latest poll, with the full `state` response in a `raw` attribute that isn't
+  recorded to history.
 - Unit tests for the detector in `tests/test_rise.py`.
 
 ### Removed
