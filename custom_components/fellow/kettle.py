@@ -38,6 +38,10 @@ class KettleResponseError(KettleTransientError):
     """Raised when the kettle's response can't be parsed (missing fields)."""
 
 
+class KettleWakeError(Exception):
+    """The kettle could not be turned on in a way that lights the display."""
+
+
 @dataclass
 class KettleState:
     """Represents the current state of the kettle"""
@@ -196,7 +200,14 @@ class StaggEKGClient:
         return self._send_command("heatoff")
 
     def warm_on(self) -> str:
-        """Turn warming on"""
+        """Turn warming on.
+
+        Refused while the kettle is off: `warmon` drives the warming element
+        directly, so from Off it would heat with the display dark.
+        """
+        state = self.get_state()
+        if state.is_off:
+            raise KettleWakeError("Turn the kettle on before enabling warming")
         return self._send_command("warmon")
 
     def warm_off(self) -> str:
@@ -212,18 +223,24 @@ class StaggEKGClient:
         return self._send_command("2")
 
     def start_heating(self) -> str:
-        """Start a heating cycle via direct state command.
+        """Start a heating cycle the way pressing the dial does.
 
-        `ss S_Heat` tells the firmware to enter the Heat state from any
-        starting state, so we don't need to wake the kettle first or worry
-        about the button-2 toggle behavior. We still skip the command if
-        the kettle is already heating to avoid unnecessary chatter.
+        From Off this presses button 2, which wakes the display and starts
+        heating. Never use `ss S_Heat` from Off: on firmware 1.1.75SSP it ran
+        the heater while the kettle kept reporting S_Off with the display
+        dark, hiding the boil from the user and from rapid-rise detection.
+        `ss S_Heat` is only sent once the kettle is awake (e.g. holding),
+        where the display shows the change.
         """
-        state = self.get_state()
+        state = self._ensure_awake()
         if state.is_heating:
-            _LOGGER.debug("Kettle already heating, skipping start command")
-            return "already heating"
-        return self._send_command("ss S_Heat")
+            return "heating"
+        if state.is_off:
+            raise KettleWakeError(
+                f"Kettle did not wake when the dial was pressed (mode={state.mode})"
+            )
+        self._send_command("ss S_Heat")
+        return "heating"
 
     def stop_heating(self, max_attempts: int = 3) -> str:
         """Stop heating or holding via direct state command.

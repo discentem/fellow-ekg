@@ -31,6 +31,13 @@ All notable changes to this project will be documented in this file.
   `watch_heat_cycle()` instead.
 
 ### Fixed
+- Starting a boil from Home Assistant no longer bypasses the kettle's
+  display. `ss S_Heat` sent from Off ran the heater on firmware 1.1.75SSP
+  while the kettle kept reporting Off with the display dark, so neither the
+  user nor the integration could tell it was heating. `start_heating()` now
+  presses the dial from Off, like starting it by hand, and raises an error if
+  the kettle doesn't wake. Turning on warming while the kettle is off is
+  refused for the same reason.
 - The example client's `stop_heating()` sends `ss S_Off` and checks that it
   took, like the integration's client. It used to press the dial, which
   toggles, so it could start a stopped kettle again.
