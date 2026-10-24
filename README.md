@@ -145,12 +145,23 @@ moved yet. If the rate goes above the threshold (default **3.0 °C/s**):
   seconds, it gives up, fires a `fellow_rapid_rise_stop_failed` event (`rate`,
   `attempts`) and shows a persistent notification.
 
+Detection works however the boil is started: from the Heating switch or
+water heater entity, from an automation, or with the buttons on the kettle
+itself. It runs on every poll, so no automation is needed, and neither is
+auto-stop. It only works while Home Assistant is running. If the integration
+reloads mid-boil (for example after saving these options), detection starts
+again with a new 20-second grace period.
+
 Both settings are under Settings → Devices & Services → Fellow → Configure.
 The threshold can be set from 1.0 to 10.0 °C/s.
 
 This is a heuristic, not a water sensor. The default comes from one kettle
 at two fill levels; an empty kettle was not measured. The kettle's own
-boil-dry protection is still the real safeguard. Example automation:
+boil-dry protection is still the real safeguard.
+
+The automation below is optional: it only sends a phone notification. It is
+most useful with auto-stop turned off, when the alert would otherwise only
+show up on the sensor:
 
 ```yaml
 automation:
