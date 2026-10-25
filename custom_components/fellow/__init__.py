@@ -249,7 +249,7 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         self._drive_auto_stop(now, state.is_heating or state.is_holding)
 
         self.hold_timer.update(self.last_poll, state.mode)
-        target = self.targets.poll(state.mode, state.set_temp_c)
+        target = self.targets.poll(state.mode, state.set_temp_c, self.last_poll)
         if target is not None and now >= self._next_target_retry:
             if not await self.async_write_target(target):
                 self._next_target_retry = now + TARGET_RETRY_SECONDS
@@ -292,6 +292,10 @@ class StaggEKGDataUpdateCoordinator(DataUpdateCoordinator):
         target = self.targets.set_hold_target(celsius, bool(state and state.is_holding))
         if target is not None:
             await self.async_write_target(target)
+        self._save_targets()
+
+    def set_hold_delay(self, minutes: float) -> None:
+        self.targets.set_hold_delay(minutes)
         self._save_targets()
 
     async def async_before_boil(self) -> None:

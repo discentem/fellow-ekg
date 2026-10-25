@@ -24,6 +24,10 @@ from .rise import HOLD_MODE, base_mode, is_heating_mode, is_holding_mode
 
 MIN_TARGET_C = 40.0
 MAX_TARGET_C = 100.0
+# Minutes the water stays at the heat-up target after the boil, so there's
+# time to pour, before the target drops to the Hold Target.
+DEFAULT_HOLD_DELAY_MIN = 2.0
+MAX_HOLD_DELAY_MIN = 60.0
 HOLD_OVER_MODES = ("S_HeatOff", "S_Off")
 # Below the kettle's 0.5 C step, two targets count as the same.
 SAME_TARGET_C = 0.25
@@ -64,29 +68,41 @@ class TargetManager:
     """
 
     def __init__(self, heat_target: Optional[float] = None,
-                 hold_target: Optional[float] = None, applied: bool = False):
+                 hold_target: Optional[float] = None, applied: bool = False,
+                 hold_delay: float = DEFAULT_HOLD_DELAY_MIN):
         self.heat_target = heat_target
         self.hold_target = hold_target
         # True while the kettle's target is the hold target (written by us).
         self.applied = applied
+        self.hold_delay = hold_delay  # minutes
         self.changed = False  # something worth saving
+        # When the boil first reached its target and the kettle started
+        # holding. Pours (S_Standby, then a reheat) don't reset it; the hold
+        # ending or the kettle turning off does.
+        self._hold_reached_at: Optional[datetime] = None
 
     @classmethod
     def from_dict(cls, data: Optional[Dict[str, Any]]) -> "TargetManager":
         data = data or {}
         return cls(data.get("heat_target"), data.get("hold_target"),
-                   bool(data.get("applied", False)))
+                   bool(data.get("applied", False)),
+                   data.get("hold_delay", DEFAULT_HOLD_DELAY_MIN))
 
     def as_dict(self) -> Dict[str, Any]:
         return {"heat_target": self.heat_target, "hold_target": self.hold_target,
-                "applied": self.applied}
+                "applied": self.applied, "hold_delay": self.hold_delay}
 
     def _holds_lower(self) -> bool:
         return (self.heat_target is not None and self.hold_target is not None
                 and self.hold_target <= self.heat_target - 2 * SAME_TARGET_C)
 
-    def poll(self, mode: Optional[str], kettle_target: Optional[float]) -> Optional[float]:
+    def poll(self, mode: Optional[str], kettle_target: Optional[float],
+             now: datetime) -> Optional[float]:
         """Record a poll; return a target to write, or None."""
+        if base_mode(mode) in HOLD_OVER_MODES:
+            self._hold_reached_at = None
+        elif is_holding_mode(mode) and self._hold_reached_at is None:
+            self._hold_reached_at = now
         if self.applied:
             if base_mode(mode) in HOLD_OVER_MODES:
                 return self.heat_target
@@ -101,9 +117,23 @@ class TargetManager:
                 if self.hold_target is None:
                     self.hold_target = kettle_target
                 self.changed = True
-        if is_holding_mode(mode) and self._holds_lower():
+        if is_holding_mode(mode) and self._holds_lower() and self._delay_over(now):
             return self.hold_target
         return None
+
+    def _delay_over(self, now: datetime) -> bool:
+        return (self._hold_reached_at is not None
+                and now - self._hold_reached_at >= timedelta(minutes=self.hold_delay))
+
+    def drops_at(self) -> Optional[datetime]:
+        """When the target will drop to the Hold Target, if that's pending."""
+        if self.applied or self._hold_reached_at is None or not self._holds_lower():
+            return None
+        return self._hold_reached_at + timedelta(minutes=self.hold_delay)
+
+    def set_hold_delay(self, minutes: float) -> None:
+        self.hold_delay = max(0.0, min(MAX_HOLD_DELAY_MIN, float(minutes)))
+        self.changed = True
 
     def written(self, target: float) -> None:
         """The kettle accepted `target`."""
@@ -134,8 +164,7 @@ class TargetManager:
             # Already holding lower: move to the new hold target, or back to
             # the heat-up target if the hold target is no longer lower.
             return self.hold_target if self._holds_lower() else self.heat_target
-        if holding and self._holds_lower():
-            return self.hold_target
+        # Otherwise the next poll lowers it, once the hold delay is over.
         return None
 
     def before_boil(self) -> Optional[float]:

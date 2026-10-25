@@ -23,6 +23,10 @@ All notable changes to this project will be documented in this file.
   The water heater's target is the Heat Up Target, so
   `water_heater.set_temperature` keeps working as before; it also shows the
   Hold Target as a `hold_temperature` attribute.
+- `Hold Delay` number (minutes, default 2): after a boil, the water stays at
+  the Heat Up Target this long, so there's time to pour, before the target
+  drops to the Hold Target. Pours during the delay don't restart it. The Hold
+  Target's `drops_at` attribute shows when the drop is due.
 - `Hold Ends` sensor: when the current hold ends, as a countdown, with the
   end as a clock time in an `ends_at` attribute.
 - `Mode` shows "Cooling to target" or "Cooling to hold target" while the

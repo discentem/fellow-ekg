@@ -23,13 +23,16 @@ for _name in ("rise", "targets"):
 targets = sys.modules[f"{_pkg.__name__}.targets"]
 
 
-def run(manager, polls):
-    """Feed (mode, kettle_target) polls, writing whatever the manager asks."""
+T0 = datetime(2026, 10, 25, 8, 0, 0)
+
+
+def run(manager, polls, start=T0, step=5):
+    """Feed (mode, kettle_target) polls every `step` s, writing what's asked."""
     writes = []
     kettle = None
-    for mode, kettle_target in polls:
+    for i, (mode, kettle_target) in enumerate(polls):
         kettle = kettle if kettle_target is None else kettle_target
-        target = manager.poll(mode, kettle)
+        target = manager.poll(mode, kettle, start + timedelta(seconds=i * step))
         if target is not None:
             writes.append((mode, target))
             manager.written(target)
@@ -40,7 +43,7 @@ def run(manager, polls):
 class TargetManagerTest(unittest.TestCase):
 
     def test_hold_lower_then_restore_when_hold_runs_out(self):
-        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0, hold_delay=0)
         writes = run(m, [("S_Off", 100.0), ("S_Heat", None), ("S_Hold", None),
                          ("S_Hold", None), ("S_HeatOff", None), ("S_Off", None)])
         self.assertEqual(writes, [("S_Hold", 85.0), ("S_HeatOff", 100.0)])
@@ -49,26 +52,26 @@ class TargetManagerTest(unittest.TestCase):
     def test_pour_mid_hold_keeps_hold_target(self):
         # Seen on the kettle: lifted mid-hold reports S_Standby, set down it
         # reheats (S_Heat) and holds again.
-        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0, hold_delay=0)
         writes = run(m, [("S_Heat", 100.0), ("S_Hold", None), ("S_Standby", None),
                          ("S_Heat", None), ("S_Hold", None), ("S_Hold+menu", None)])
         self.assertEqual(writes, [("S_Hold", 85.0)])
         self.assertTrue(m.applied)
 
     def test_turning_off_mid_hold_restores(self):
-        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0, hold_delay=0)
         writes = run(m, [("S_Heat", 100.0), ("S_Hold", None), ("S_Off", None)])
         self.assertEqual(writes, [("S_Hold", 85.0), ("S_Off", 100.0)])
 
     def test_hold_target_at_or_above_heat_target_changes_nothing(self):
         for hold in (100.0, 100.2, 105.0):
             with self.subTest(hold=hold):
-                m = targets.TargetManager(heat_target=100.0, hold_target=hold)
+                m = targets.TargetManager(heat_target=100.0, hold_target=hold, hold_delay=0)
                 self.assertEqual(run(m, [("S_Heat", 100.0), ("S_Hold", None),
                                          ("S_HeatOff", None)]), [])
 
     def test_dial_changes_follow_outside_a_lowered_hold(self):
-        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0, hold_delay=0)
         run(m, [("S_Off", 100.0), ("S_Heat+tset", 93.0), ("S_Heat", 93.0)])
         self.assertEqual(m.heat_target, 93.0)
         # ...but not during one, where the kettle's target is the hold target.
@@ -82,7 +85,7 @@ class TargetManagerTest(unittest.TestCase):
         self.assertTrue(m.changed)
 
     def test_restart_mid_hold_keeps_heat_target(self):
-        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0, hold_delay=0)
         run(m, [("S_Heat", 100.0), ("S_Hold", None)])
         restored = targets.TargetManager.from_dict(m.as_dict())
         # The kettle reads 85 now; that must not become the heat-up target.
@@ -91,10 +94,12 @@ class TargetManagerTest(unittest.TestCase):
         self.assertEqual(restored.heat_target, 100.0)
 
     def test_changing_targets(self):
-        m = targets.TargetManager(heat_target=100.0, hold_target=100.0)
+        m = targets.TargetManager(heat_target=100.0, hold_target=100.0, hold_delay=0)
         self.assertEqual(m.set_heat_target(95.0, holding=False), 95.0)  # now
-        self.assertEqual(m.set_hold_target(80.0, holding=True), 80.0)
-        m.written(80.0)
+        m.written(95.0)
+        # Not lowered yet: setting a lower hold target waits for the next poll.
+        self.assertIsNone(m.set_hold_target(80.0, holding=True))
+        self.assertEqual(run(m, [("S_Hold", 95.0)]), [("S_Hold", 80.0)])
         self.assertEqual(m.set_heat_target(98.0, holding=True), None)   # later
         self.assertEqual(m.set_hold_target(75.0, holding=True), 75.0)
         m.written(75.0)
@@ -114,6 +119,40 @@ class TargetManagerTest(unittest.TestCase):
         writes = run(m, [("S_Hold", 80.5), ("S_Hold+menu", 80.5), ("S_HeatOff", None)])
         self.assertEqual(writes, [("S_HeatOff", 100.0)])
         self.assertEqual(m.heat_target, 100.0)
+
+    def test_hold_delay_leaves_time_to_pour(self):
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)  # 2 min
+        self.assertEqual(m.hold_delay, targets.DEFAULT_HOLD_DELAY_MIN)
+        # Boil reaches 100 at poll 2 (10 s); a pour at about 1 min (lifted,
+        # set down, reheat, hold again) doesn't restart the delay.
+        polls = ([("S_Heat", 100.0)] * 2 + [("S_Hold", None)] * 10
+                 + [("S_Standby", None), ("S_Heat", None)]
+                 + [("S_Hold", None)] * 20)
+        writes = run(m, polls)
+        self.assertEqual(writes, [("S_Hold", 85.0)])
+        # Dropped on the first poll at least 2 minutes after the boil.
+        dropped_at = [i for i, _ in enumerate(polls) if i * 5 >= 10 + 120][0]
+        m2 = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        before = run(m2, polls[:dropped_at])
+        self.assertEqual(before, [])
+        self.assertEqual(m2.drops_at(), T0 + timedelta(seconds=10 + 120))
+
+    def test_hold_delay_resets_when_the_hold_ends(self):
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0, hold_delay=1)
+        run(m, [("S_Heat", 100.0), ("S_Hold", None), ("S_Off", None)])
+        self.assertIsNone(m.drops_at())
+        # A new boil gets the full delay again.
+        writes = run(m, [("S_Heat", None)] + [("S_Hold", None)] * 13,
+                     start=T0 + timedelta(minutes=10))
+        self.assertEqual(writes, [("S_Hold", 85.0)])
+
+    def test_zero_delay_drops_at_once_and_delay_is_saved(self):
+        m = targets.TargetManager(heat_target=100.0, hold_target=85.0)
+        m.set_hold_delay(0)
+        self.assertEqual(run(m, [("S_Heat", 100.0), ("S_Hold", None)]), [("S_Hold", 85.0)])
+        self.assertEqual(targets.TargetManager.from_dict(m.as_dict()).hold_delay, 0)
+        m.set_hold_delay(500)
+        self.assertEqual(m.hold_delay, targets.MAX_HOLD_DELAY_MIN)
 
 
 class CoolingLabelTest(unittest.TestCase):

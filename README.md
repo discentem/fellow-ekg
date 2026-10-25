@@ -50,6 +50,7 @@ Works with all Fellow kettles that have the HTTP CLI interface.
 | `sensor.fellow_target_temperature` | Sensor | "Native Target Temperature": the kettle's own target, read-only: the Heat Up Target during a boil, the Hold Target during a lowered hold (`role` attribute says which) |
 | `number.fellow_heat_up_target` | Number | What a boil heats to (the water heater's target) |
 | `number.fellow_hold_target` | Number | What the kettle holds at after a boil |
+| `number.fellow_hold_delay` | Number (minutes) | Time at the Heat Up Target after a boil, to pour, before dropping to the Hold Target (default 2) |
 | `sensor.fellow_hold_ends` | Sensor (timestamp) | When the current hold ends, shown as a countdown |
 | `sensor.fellow_mode` | Sensor | Operating mode (Off, Heat, Standby) |
 | `switch.fellow_heating` | Switch | Heating element control |
@@ -127,8 +128,12 @@ The kettle has a single target temperature: it heats to it, then holds there.
 To boil hot but keep the water at a gentler temperature, set **Hold Target**
 below **Heat Up Target**.
 
-When a boil finishes and the kettle starts holding, the integration lowers the
-kettle's target to the Hold Target. The water cools to it, and the kettle
+When a boil finishes and the kettle starts holding, the integration waits
+**Hold Delay** minutes (default 2), so there's time to pour at the full
+temperature, then lowers the kettle's target to the Hold Target. Lifting the
+kettle to pour during the delay doesn't restart it; set it to 0 to drop
+straight away. The Hold Target's `drops_at` attribute shows when the drop is
+due. The water then cools to it, and the kettle
 holds it there; on a Stagg EKG Pro, a hold lowered to 85 °C stayed within
 84.2–85.7 °C. When the hold runs out or the kettle is turned off, the
 integration puts the Heat Up Target back, so the next boil, even one started
@@ -144,6 +149,11 @@ Outside a lowered hold, Heat Up Target follows the kettle's own target, so
 turning the dial still works. A Hold Target at or above the Heat Up Target
 means the kettle holds at the Heat Up Target, as before. Both are kept by
 Home Assistant, so lowering the hold only works while it's running.
+
+The kettle's Hold Duration counts from the boil, so the delay and the cooling
+come out of it. With a 2-minute delay, cooling from 100 °C to 85 °C takes
+about another 8 minutes, so a 15-minute Hold Duration leaves only a few
+minutes at 85; 30 or 45 suits a lower Hold Target better.
 
 In automations, `water_heater.set_temperature` sets the Heat Up Target, as it
 always set the kettle's target, so existing automations keep working. Set the
